@@ -46,7 +46,7 @@ app.use('/api/auth', authRoutes);
 app.get('/', (req, res) => {
   res.send('RMS Backend is running 🚀');
 });
-
+console.log("Loaded URI:", process.env.MONGO_URI);
 // Start server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () =>

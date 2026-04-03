@@ -7,7 +7,7 @@ const User = require('../models/userModel');
 // REGISTER
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, department } = req.body;
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
@@ -20,7 +20,8 @@ router.post('/register', async (req, res) => {
       name,
       email,
       password: hashedPassword,
-      role
+      role,
+      department
     });
 
     res.status(201).json({ message: 'User registered successfully' });
@@ -50,7 +51,16 @@ router.post('/login', async (req, res) => {
       { expiresIn: '1d' }
     );
 
-    res.json({ token });
+    res.json({
+      token,
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        department: user.department
+      }
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
