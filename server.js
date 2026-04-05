@@ -3,6 +3,8 @@ require('dotenv').config();
 const connectDB = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
 
+
+console.log("Starting server with environment variables:");
 // Initialize express app
 const app = express();
 app.use(express.json());
@@ -24,6 +26,9 @@ const projectRoutes = require('./routes/projectRoutes');
 const proposalRoutes = require('./routes/proposalRoutes');
 const fundRoutes = require('./routes/fundRoutes');
 const documentRoutes = require('./routes/documentRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
+const reportRoutes = require('./routes/reportRoutes');
+const auditLogRoutes = require('./routes/auditLogRoutes');
 
 console.log({
   publicationRoutes,
@@ -42,6 +47,9 @@ app.use('/api/proposals', proposalRoutes);
 app.use('/api/funds', fundRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/reports', reportRoutes); // ✅ VALID
+app.use('/api/audit-logs', auditLogRoutes); // ✅ VALID
 // Default route
 app.get('/', (req, res) => {
   res.send('RMS Backend is running 🚀');

@@ -1,93 +1,248 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
-const Publication = require('../models/publicationModel');
-const authMiddleware = require('../middleware/authMiddleware');
 
-// 1️⃣ Test route to check if API works
+const Publication = require('../models/publicationModel');
+const User = require('../models/userModel');
+const AuditLog = require('../models/auditLogModel');
+const authMiddleware = require('../middleware/authMiddleware');
+const upload = require('../middleware/uploadMiddleware');
+const allowRoles = require('../middleware/roleMiddleware');
+
+// Debug middleware
 router.use((req, res, next) => {
   console.log('Incoming request:', req.method, req.originalUrl);
   next();
 });
 
-router.post('/', authMiddleware, async (req, res) => {
-  const publication = await Publication.create(req.body);
-  res.status(201).json(publication);
-});
+// CREATE publication with file upload
+router.post(
+  '/',
+  authMiddleware,
+  allowRoles('super_admin', 'faculty', 'student'),
+  upload.single('file'),
+  async (req, res) => {
+    try {
+      const publicationData = {
+        ...req.body,
+        upload: req.file?.path || '',
+        public_id: req.file?.filename || '',
+        fileName: req.file?.originalname || '',
+        mimeType: req.file?.mimetype || '',
+        uploadedBy: req.user?.id || null
+      };
 
-// 2️⃣ Add a new publication
-router.post('/add', async (req, res) => {
-  try {
-    const publication = new Publication(req.body);
-    await publication.save();
-    res.status(201).json({ message: "✅ Publication saved successfully!", data: publication });
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-});
+      const publication = await Publication.create(publicationData);
 
-// 3️⃣ Get all publications
-router.get('/all', async (req, res) => {
-  try {
-    const publications = await Publication.find().sort({ createdAt: -1 });
-    res.json(publications);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
+      // AUDIT LOG
+      const currentUser = await User.findById(req.user.id);
 
-// Get a single publication by ID
-router.get('/:id', async (req, res) => {
-  console.log('🆔 GET by ID hit, requested ID:', req.params.id); // <--- log the ID
+      await AuditLog.create({
+        action: 'upload_publication',
+        performedBy: req.user.id,
+        role: req.user.role,
+        department: currentUser?.department || '',
+        targetType: 'publication',
+        targetId: publication._id,
+        details: `Uploaded publication "${publication.title}"`
+      });
 
-  const mongoose = require('mongoose');
-  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-    return res.status(400).json({ error: "Invalid ID format" });
-  }
-
-  try {
-    const publication = await Publication.findById(req.params.id);
-    if (!publication) {
-      return res.status(404).json({ message: "Publication not found" });
+      res.status(201).json({
+        message: '✅ Publication saved successfully!',
+        data: publication
+      });
+    } catch (error) {
+      console.error('CREATE PUBLICATION ERROR:', error);
+      res.status(400).json({ error: error.message });
     }
-    res.json(publication);
-  } catch (error) {
-    console.error('❌ Error fetching by ID:', error.message);
-    res.status(500).json({ error: error.message });
   }
-});
+);
 
-// Update publication by ID
-router.put('/:id', async (req, res) => {
-  try {
-    const updatedPublication = await Publication.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true } // returns the updated document
-    );
+// GET all publications
+router.get(
+  '/',
+  authMiddleware,
+  allowRoles('super_admin', 'faculty', 'student', 'admin', 'special_user', 'directorate'),
+  async (req, res) => {
+    try {
+      const publications = await Publication.find()
+        .populate('uploadedBy', 'name email role department')
+        .populate('approvedBy', 'name email role')
+        .sort({ createdAt: -1 });
 
-    if (!updatedPublication) {
-      return res.status(404).json({ message: "❌ Publication not found!" });
+      res.json(publications);
+    } catch (error) {
+      console.error('GET PUBLICATIONS ERROR:', error);
+      res.status(500).json({ error: error.message });
     }
-
-    res.json({ message: "✅ Publication updated successfully!", data: updatedPublication });
-  } catch (error) {
-    res.status(400).json({ error: error.message });
   }
-});
+);
 
-// Delete publication by ID
-router.delete('/:id', async (req, res) => {
-  try {
-    const deletedPublication = await Publication.findByIdAndDelete(req.params.id);
-
-    if (!deletedPublication) {
-      return res.status(404).json({ message: "❌ Publication not found!" });
+// GET single publication by ID
+router.get(
+  '/:id',
+  authMiddleware,
+  allowRoles('super_admin', 'faculty', 'student', 'admin', 'special_user', 'directorate'),
+  async (req, res) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid ID format' });
     }
 
-    res.json({ message: "🗑️ Publication deleted successfully!" });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+    try {
+      const publication = await Publication.findById(req.params.id)
+        .populate('uploadedBy', 'name email role department')
+        .populate('approvedBy', 'name email role');
+
+      if (!publication) {
+        return res.status(404).json({ message: 'Publication not found' });
+      }
+
+      res.json(publication);
+    } catch (error) {
+      console.error('GET SINGLE PUBLICATION ERROR:', error);
+      res.status(500).json({ error: error.message });
+    }
   }
-});
+);
+
+// UPDATE publication by ID -> only super_admin
+router.put(
+  '/:id',
+  authMiddleware,
+  allowRoles('super_admin'),
+  async (req, res) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid ID format' });
+    }
+
+    try {
+      const existingPublication = await Publication.findById(req.params.id);
+
+      if (!existingPublication) {
+        return res.status(404).json({ message: '❌ Publication not found!' });
+      }
+
+      const updatedPublication = await Publication.findByIdAndUpdate(
+        req.params.id,
+        req.body,
+        { new: true, runValidators: true }
+      );
+
+      // AUDIT LOG
+      const currentUser = await User.findById(req.user.id);
+      await AuditLog.create({
+        action: 'update_publication',
+        performedBy: req.user.id,
+        role: req.user.role,
+        department: currentUser?.department || '',
+        targetType: 'publication',
+        targetId: updatedPublication._id,
+        details: `Updated publication "${updatedPublication.title}"`
+      });
+
+      res.json({
+        message: '✅ Publication updated successfully!',
+        data: updatedPublication
+      });
+    } catch (error) {
+      console.error('UPDATE PUBLICATION ERROR:', error);
+      res.status(400).json({ error: error.message });
+    }
+  }
+);
+
+// APPROVE / REJECT publication
+router.put(
+  '/:id/status',
+  authMiddleware,
+  allowRoles('super_admin', 'faculty', 'directorate'),
+  async (req, res) => {
+    const { status, rejectionReason } = req.body;
+
+    if (!['approved', 'rejected', 'pending'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status value' });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid ID format' });
+    }
+
+    try {
+      const publication = await Publication.findById(req.params.id);
+
+      if (!publication) {
+        return res.status(404).json({ message: 'Publication not found' });
+      }
+
+      publication.status = status;
+      publication.approvedBy = req.user?.id || null;
+      publication.approvedAt = new Date();
+      publication.rejectionReason =
+        status === 'rejected' ? (rejectionReason || '') : '';
+
+      await publication.save();
+
+      // AUDIT LOG
+      const currentUser = await User.findById(req.user.id);
+      await AuditLog.create({
+        action: status === 'approved' ? 'approve_publication' : 'reject_publication',
+        performedBy: req.user.id,
+        role: req.user.role,
+        department: currentUser?.department || '',
+        targetType: 'publication',
+        targetId: publication._id,
+        details:
+          status === 'approved'
+            ? `Approved publication "${publication.title}"`
+            : `Rejected publication "${publication.title}"${rejectionReason ? ` - Reason: ${rejectionReason}` : ''}`
+      });
+
+      res.json({
+        message: `✅ Publication ${status} successfully!`,
+        data: publication
+      });
+    } catch (error) {
+      console.error('STATUS UPDATE ERROR:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+// DELETE publication by ID -> only super_admin
+router.delete(
+  '/:id',
+  authMiddleware,
+  allowRoles('super_admin'),
+  async (req, res) => {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid ID format' });
+    }
+
+    try {
+      const deletedPublication = await Publication.findByIdAndDelete(req.params.id);
+
+      if (!deletedPublication) {
+        return res.status(404).json({ message: '❌ Publication not found!' });
+      }
+
+      // AUDIT LOG
+      const currentUser = await User.findById(req.user.id);
+      await AuditLog.create({
+        action: 'delete_publication',
+        performedBy: req.user.id,
+        role: req.user.role,
+        department: currentUser?.department || '',
+        targetType: 'publication',
+        targetId: deletedPublication._id,
+        details: `Deleted publication "${deletedPublication.title}"`
+      });
+
+      res.json({ message: '🗑️ Publication deleted successfully!' });
+    } catch (error) {
+      console.error('DELETE PUBLICATION ERROR:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
 
 module.exports = router;

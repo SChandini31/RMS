@@ -11,15 +11,11 @@ const userSchema = new mongoose.Schema({
       'faculty',
       'student',
       'admin',
-      'finance_department',
-      'university_management',
-      'director_rd',
-      'assistant_director_research'
-    ],
+      'special_user',
+      'directorate'],
     required: true
   },
-  department: { type: String, required: true },
-  createdAt: { type: Date, default: Date.now }
-});
+  department: { type: String, required: true, trim: true },
+}, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);
