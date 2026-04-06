@@ -59,40 +59,41 @@ router.post('/', authMiddleware, allowRoles('super_admin'), async (req, res) => 
     });
 
     // SEND EMAIL
-    let emailStatus = 'Email sent successfully';
-    try {
-      await transporter.sendMail({
-        from: process.env.EMAIL_USER,
-        to: user.email,
-        subject: 'RMS Account Created',
-        html: `
-          <div style="font-family: Arial, sans-serif; line-height: 1.6;">
-            <h2>Welcome to Apollo RMS</h2>
-            <p>Hello <strong>${user.name}</strong>,</p>
-            <p>Your account has been created successfully.</p>
-            <p><strong>Login Credentials:</strong></p>
-            <ul>
-              <li><strong>Email:</strong> ${user.email}</li>
-              <li><strong>Temporary Password:</strong> ${password}</li>
-              <li><strong>Role:</strong> ${user.role}</li>
-              <li><strong>Department:</strong> ${user.department}</li>
-              <li><strong>School:</strong> ${user.school}</li>
-            </ul>
-            <p>Please login and change your password after first login.</p>
-            <p>Regards,<br/>Apollo RMS Team</p>
-          </div>
-        `
-      });
-    } catch (mailError) {
-      console.error('EMAIL SEND ERROR:', mailError);
-      emailStatus = 'User created, but email failed to send';
-    }
+    // SEND EMAIL
+let emailStatus = 'Email sent successfully';
 
-    res.status(201).json({
-      message: '✅ User created successfully',
-      emailStatus,
-      data: safeUser
-    });
+try {
+  await Promise.race([
+    transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: user.email,
+      subject: 'RMS Account Created',
+      html: `
+        <h2>Welcome to RMS</h2>
+        <p>Hello ${user.name},</p>
+        <p>Your account has been created.</p>
+        <p><b>Email:</b> ${user.email}</p>
+        <p><b>Password:</b> ${password}</p>
+        <p><b>Role:</b> ${user.role}</p>
+        <p><b>Department:</b> ${user.department}</p>
+        <p><b>School:</b> ${user.school}</p>
+        <p>Please login and change your password.</p>
+      `
+    }),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Email timeout')), 5000)
+    )
+  ]);
+} catch (mailError) {
+  console.error('EMAIL SEND ERROR:', mailError);
+  emailStatus = 'User created, but email failed or timed out';
+}
+
+res.status(201).json({
+  message: '✅ User created successfully',
+  emailStatus,
+  data: safeUser
+});
   } catch (err) {
     console.error('CREATE USER ERROR:', err);
     res.status(500).json({ error: err.message });
