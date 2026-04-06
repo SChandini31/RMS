@@ -16,6 +16,7 @@ const userSchema = new mongoose.Schema({
     required: true
   },
   department: { type: String, required: true, trim: true },
+  school: { type: String, required: true, trim: true },
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);

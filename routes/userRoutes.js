@@ -2,6 +2,7 @@ console.log("this is loaded");
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const mongoose = require('mongoose');
+const nodemailer = require('nodemailer');
 
 const router = express.Router();
 const User = require('../models/userModel');
@@ -9,12 +10,21 @@ const authMiddleware = require('../middleware/authMiddleware');
 const allowRoles = require('../middleware/roleMiddleware');
 const AuditLog = require('../models/auditLogModel');
 
+// Nodemailer transporter
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
+
 // CREATE user -> only super_admin
 router.post('/', authMiddleware, allowRoles('super_admin'), async (req, res) => {
   try {
-    const { name, email, password, role, department } = req.body;
+    const { name, email, password, role, department, school } = req.body;
 
-    if (!name || !email || !password || !role || !department) {
+    if (!name || !email || !password || !role || !department || !school) {
       return res.status(400).json({ message: 'All fields are required' });
     }
 
@@ -30,7 +40,8 @@ router.post('/', authMiddleware, allowRoles('super_admin'), async (req, res) => 
       email: email.toLowerCase(),
       password: hashedPassword,
       role,
-      department
+      department,
+      school
     });
 
     const safeUser = await User.findById(user._id).select('-password');
@@ -47,8 +58,39 @@ router.post('/', authMiddleware, allowRoles('super_admin'), async (req, res) => 
       details: `Created user ${user.email} with role ${user.role} in ${user.department}`
     });
 
+    // SEND EMAIL
+    let emailStatus = 'Email sent successfully';
+    try {
+      await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: user.email,
+        subject: 'RMS Account Created',
+        html: `
+          <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+            <h2>Welcome to Apollo RMS</h2>
+            <p>Hello <strong>${user.name}</strong>,</p>
+            <p>Your account has been created successfully.</p>
+            <p><strong>Login Credentials:</strong></p>
+            <ul>
+              <li><strong>Email:</strong> ${user.email}</li>
+              <li><strong>Temporary Password:</strong> ${password}</li>
+              <li><strong>Role:</strong> ${user.role}</li>
+              <li><strong>Department:</strong> ${user.department}</li>
+              <li><strong>School:</strong> ${user.school}</li>
+            </ul>
+            <p>Please login and change your password after first login.</p>
+            <p>Regards,<br/>Apollo RMS Team</p>
+          </div>
+        `
+      });
+    } catch (mailError) {
+      console.error('EMAIL SEND ERROR:', mailError);
+      emailStatus = 'User created, but email failed to send';
+    }
+
     res.status(201).json({
       message: '✅ User created successfully',
+      emailStatus,
       data: safeUser
     });
   } catch (err) {
