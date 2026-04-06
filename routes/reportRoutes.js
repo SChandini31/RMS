@@ -8,10 +8,24 @@ const Publication = require('../models/publicationModel');
 const User = require('../models/userModel');
 const AuditLog = require('../models/auditLogModel');
 
-// Build chart/report data based on role + range
+// Build chart/report data based on role + custom date range
 async function getPublicationReportData(req) {
-  const range = req.query.range || 'monthly';
-  const now = new Date();
+  const { from, to } = req.query;
+
+  if (!from || !to) {
+    throw new Error('From date and To date are required');
+  }
+
+  const fromDate = new Date(`${from}T00:00:00.000Z`);
+  const toDate = new Date(`${to}T23:59:59.999Z`);
+
+  if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+    throw new Error('Invalid date format');
+  }
+
+  if (fromDate > toDate) {
+    throw new Error('From date cannot be greater than To date');
+  }
 
   const currentUser = await User.findById(req.user.id);
   if (!currentUser) {
@@ -19,7 +33,10 @@ async function getPublicationReportData(req) {
   }
 
   // Role-based scope
-  let filter = {};
+  let filter = {
+    createdAt: { $gte: fromDate, $lte: toDate }
+  };
+
   if (req.user.role === 'admin') {
     filter.department = currentUser.department;
   } else if (req.user.role === 'faculty' || req.user.role === 'student') {
@@ -29,72 +46,29 @@ async function getPublicationReportData(req) {
     req.user.role === 'directorate' ||
     req.user.role === 'special_user'
   ) {
-    // full access / view access
+    // full / view-only access
   } else {
     throw new Error('Access denied');
   }
 
-  let data = [];
+  const publications = await Publication.find(filter).sort({ createdAt: 1 });
 
-  if (range === 'weekly') {
-    const start = new Date(now);
-    start.setDate(now.getDate() - 6);
-    start.setHours(0, 0, 0, 0);
+  // Group by day for date-range graph
+  const groupedData = {};
 
-    const publications = await Publication.find({
-      ...filter,
-      createdAt: { $gte: start, $lte: now }
-    });
+  publications.forEach((pub) => {
+    const dateKey = new Date(pub.createdAt).toISOString().split('T')[0];
+    groupedData[dateKey] = (groupedData[dateKey] || 0) + 1;
+  });
 
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-    data = days.map((day, idx) => ({
-      label: day,
-      value: publications.filter((pub) => new Date(pub.createdAt).getDay() === idx).length
-    }));
-  } else if (range === 'monthly') {
-    const year = now.getFullYear();
-
-    const publications = await Publication.find({
-      ...filter,
-      createdAt: {
-        $gte: new Date(`${year}-01-01T00:00:00.000Z`),
-        $lte: new Date(`${year}-12-31T23:59:59.999Z`)
-      }
-    });
-
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-    data = months.map((month, index) => ({
-      label: month,
-      value: publications.filter((pub) => new Date(pub.createdAt).getMonth() === index).length
-    }));
-  } else if (range === 'yearly') {
-    const currentYear = now.getFullYear();
-    const startYear = currentYear - 4;
-
-    const publications = await Publication.find({
-      ...filter,
-      createdAt: {
-        $gte: new Date(`${startYear}-01-01T00:00:00.000Z`),
-        $lte: new Date(`${currentYear}-12-31T23:59:59.999Z`)
-      }
-    });
-
-    data = Array.from({ length: 5 }, (_, i) => {
-      const year = startYear + i;
-      return {
-        label: String(year),
-        value: publications.filter((pub) => new Date(pub.createdAt).getFullYear() === year).length
-      };
-    });
-  } else {
-    throw new Error('Invalid range. Use weekly, monthly, or yearly.');
-  }
+  const data = Object.keys(groupedData).map((date) => ({
+    label: date,
+    value: groupedData[date]
+  }));
 
   return {
-    range,
+    from,
+    to,
     data,
     role: req.user.role,
     department: currentUser.department,
@@ -108,15 +82,22 @@ router.get('/publications', authMiddleware, async (req, res) => {
     const result = await getPublicationReportData(req);
 
     res.json({
-      range: result.range,
+      from: result.from,
+      to: result.to,
       data: result.data,
       role: result.role,
       department: result.department
     });
   } catch (error) {
-    if (error.message === 'Access denied' || error.message.startsWith('Invalid range')) {
-      return res.status(403).json({ message: error.message });
+    if (
+      error.message === 'Access denied' ||
+      error.message === 'From date and To date are required' ||
+      error.message === 'Invalid date format' ||
+      error.message === 'From date cannot be greater than To date'
+    ) {
+      return res.status(400).json({ message: error.message });
     }
+
     console.error('REPORT ERROR:', error);
     res.status(500).json({ error: error.message });
   }
@@ -124,6 +105,9 @@ router.get('/publications', authMiddleware, async (req, res) => {
 
 // 2) EXCEL EXPORT
 router.get('/publications/export/excel', authMiddleware, async (req, res) => {
+  if (req.user.role !== 'super_admin') {
+    return res.status(403).json({ message: 'Only super admin can download reports' });
+  }
   try {
     const result = await getPublicationReportData(req);
 
@@ -131,8 +115,8 @@ router.get('/publications/export/excel', authMiddleware, async (req, res) => {
     const worksheet = workbook.addWorksheet('Publication Report');
 
     worksheet.columns = [
-      { header: 'Label', key: 'label', width: 20 },
-      { header: 'Value', key: 'value', width: 15 }
+      { header: 'Date', key: 'label', width: 20 },
+      { header: 'Publications Count', key: 'value', width: 20 }
     ];
 
     result.data.forEach((row) => worksheet.addRow(row));
@@ -144,7 +128,7 @@ router.get('/publications/export/excel', authMiddleware, async (req, res) => {
       role: req.user.role,
       department: result.currentUser?.department || '',
       targetType: 'report',
-      details: `Downloaded publication report in Excel for range ${result.range}`
+      details: `Downloaded publication report in Excel from ${result.from} to ${result.to}`
     });
 
     res.setHeader(
@@ -153,15 +137,21 @@ router.get('/publications/export/excel', authMiddleware, async (req, res) => {
     );
     res.setHeader(
       'Content-Disposition',
-      `attachment; filename=publication-report-${result.range}.xlsx`
+      `attachment; filename=publication-report-${result.from}-to-${result.to}.xlsx`
     );
 
     await workbook.xlsx.write(res);
     res.end();
   } catch (error) {
-    if (error.message === 'Access denied' || error.message.startsWith('Invalid range')) {
-      return res.status(403).json({ message: error.message });
+    if (
+      error.message === 'Access denied' ||
+      error.message === 'From date and To date are required' ||
+      error.message === 'Invalid date format' ||
+      error.message === 'From date cannot be greater than To date'
+    ) {
+      return res.status(400).json({ message: error.message });
     }
+
     console.error('EXCEL EXPORT ERROR:', error);
     res.status(500).json({ error: error.message });
   }
@@ -169,6 +159,9 @@ router.get('/publications/export/excel', authMiddleware, async (req, res) => {
 
 // 3) PDF EXPORT
 router.get('/publications/export/pdf', authMiddleware, async (req, res) => {
+  if (req.user.role !== 'super_admin') {
+    return res.status(403).json({ message: 'Only super admin can download reports' });
+  }
   try {
     const result = await getPublicationReportData(req);
 
@@ -179,13 +172,13 @@ router.get('/publications/export/pdf', authMiddleware, async (req, res) => {
       role: req.user.role,
       department: result.currentUser?.department || '',
       targetType: 'report',
-      details: `Downloaded publication report in PDF for range ${result.range}`
+      details: `Downloaded publication report in PDF from ${result.from} to ${result.to}`
     });
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',
-      `attachment; filename=publication-report-${result.range}.pdf`
+      `attachment; filename=publication-report-${result.from}-to-${result.to}.pdf`
     );
 
     const doc = new PDFDocument({ margin: 50 });
@@ -193,7 +186,8 @@ router.get('/publications/export/pdf', authMiddleware, async (req, res) => {
 
     doc.fontSize(18).text('Publication Report', { align: 'center' });
     doc.moveDown();
-    doc.fontSize(12).text(`Range: ${result.range}`);
+    doc.fontSize(12).text(`From: ${result.from}`);
+    doc.text(`To: ${result.to}`);
     doc.text(`Role: ${result.role}`);
     if (result.role === 'admin') {
       doc.text(`Department: ${result.department}`);
@@ -206,9 +200,15 @@ router.get('/publications/export/pdf', authMiddleware, async (req, res) => {
 
     doc.end();
   } catch (error) {
-    if (error.message === 'Access denied' || error.message.startsWith('Invalid range')) {
-      return res.status(403).json({ message: error.message });
+    if (
+      error.message === 'Access denied' ||
+      error.message === 'From date and To date are required' ||
+      error.message === 'Invalid date format' ||
+      error.message === 'From date cannot be greater than To date'
+    ) {
+      return res.status(400).json({ message: error.message });
     }
+
     console.error('PDF EXPORT ERROR:', error);
     res.status(500).json({ error: error.message });
   }
