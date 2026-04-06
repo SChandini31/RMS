@@ -23,43 +23,62 @@ router.post(
   upload.single('file'),
   async (req, res) => {
     try {
-       if (req.body.authors) req.body.authors = JSON.parse(req.body.authors);
-       if (req.body.keywords) req.body.keywords = JSON.parse(req.body.keywords);
-       if (req.body.affiliation) req.body.affiliation = JSON.parse(req.body.affiliation);
+      // authors -> JSON array
+      let parsedAuthors = [];
+      if (req.body.authors) {
+        try {
+          parsedAuthors = JSON.parse(req.body.authors);
+          if (!Array.isArray(parsedAuthors)) {
+            return res.status(400).json({ error: 'Authors must be an array' });
+          }
+        } catch (err) {
+          return res.status(400).json({ error: 'Invalid authors format' });
+        }
+      }
 
-       // ✅ FIX JSON parsing
-if (req.body.authors) {
-  try {
-    req.body.authors = JSON.parse(req.body.authors);
-  } catch (err) {
-    return res.status(400).json({ error: "Invalid authors format" });
-  }
-}
+      // keywords -> comma separated string to array
+      let parsedKeywords = [];
+      if (req.body.keywords && typeof req.body.keywords === 'string') {
+        parsedKeywords = req.body.keywords
+          .split(',')
+          .map((k) => k.trim())
+          .filter((k) => k);
+      }
 
-if (req.body.keywords) {
-  try {
-    req.body.keywords = JSON.parse(req.body.keywords);
-  } catch (err) {
-    return res.status(400).json({ error: "Invalid keywords format" });
-  }
-}
+      // affiliation -> comma separated string to array
+      let parsedAffiliation = [];
+      if (req.body.affiliation && typeof req.body.affiliation === 'string') {
+        parsedAffiliation = req.body.affiliation
+          .split(',')
+          .map((a) => a.trim())
+          .filter((a) => a);
+      }
 
-if (req.body.affiliation) {
-  try {
-    req.body.affiliation = JSON.parse(req.body.affiliation);
-  } catch (err) {
-    return res.status(400).json({ error: "Invalid affiliation format" });
-  }
-}
+      // issue -> number only if provided
+      let parsedIssue;
+      if (req.body.issue !== undefined && req.body.issue !== null && req.body.issue !== '') {
+        parsedIssue = Number(req.body.issue);
+        if (Number.isNaN(parsedIssue)) {
+          return res.status(400).json({ error: 'Issue must be a number' });
+        }
+      }
 
       const publicationData = {
         ...req.body,
+        authors: parsedAuthors,
+        keywords: parsedKeywords,
+        affiliation: parsedAffiliation,
+        issue: parsedIssue,
         upload: req.file?.path || '',
         public_id: req.file?.filename || '',
         fileName: req.file?.originalname || '',
         mimeType: req.file?.mimetype || '',
         uploadedBy: req.user?.id || null
       };
+
+      console.log('REQ BODY:', req.body);
+      console.log('PARSED PUBLICATION DATA:', publicationData);
+      console.log('REQ FILE:', req.file);
 
       const publication = await Publication.create(publicationData);
 
@@ -82,7 +101,7 @@ if (req.body.affiliation) {
       });
     } catch (error) {
       console.error('CREATE PUBLICATION ERROR:', error);
-      res.status(400).json({ error: error.message });
+      res.status(500).json({ error: error.message });
     }
   }
 );
@@ -184,7 +203,7 @@ router.put(
 router.put(
   '/:id/status',
   authMiddleware,
-  allowRoles('super_admin', 'faculty', 'directorate'),
+  allowRoles('super_admin', 'directorate'),
   async (req, res) => {
     const { status, rejectionReason } = req.body;
 
