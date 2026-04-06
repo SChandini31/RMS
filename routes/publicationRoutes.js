@@ -23,6 +23,35 @@ router.post(
   upload.single('file'),
   async (req, res) => {
     try {
+       if (req.body.authors) req.body.authors = JSON.parse(req.body.authors);
+       if (req.body.keywords) req.body.keywords = JSON.parse(req.body.keywords);
+       if (req.body.affiliation) req.body.affiliation = JSON.parse(req.body.affiliation);
+
+       // ✅ FIX JSON parsing
+if (req.body.authors) {
+  try {
+    req.body.authors = JSON.parse(req.body.authors);
+  } catch (err) {
+    return res.status(400).json({ error: "Invalid authors format" });
+  }
+}
+
+if (req.body.keywords) {
+  try {
+    req.body.keywords = JSON.parse(req.body.keywords);
+  } catch (err) {
+    return res.status(400).json({ error: "Invalid keywords format" });
+  }
+}
+
+if (req.body.affiliation) {
+  try {
+    req.body.affiliation = JSON.parse(req.body.affiliation);
+  } catch (err) {
+    return res.status(400).json({ error: "Invalid affiliation format" });
+  }
+}
+
       const publicationData = {
         ...req.body,
         upload: req.file?.path || '',
