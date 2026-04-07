@@ -267,56 +267,49 @@ router.put(
 
       // FACULTY LEVEL
       if (req.user.role === 'faculty') {
-        // faculty can only act on publications from their department
-        if (publication.department !== currentUser.department) {
-          return res.status(403).json({
-            message: 'Faculty can only review publications from their department'
-          });
-        }
+  if (publication.facultyApprovalStatus !== 'pending') {
+    return res.status(400).json({
+      message: `Faculty approval already ${publication.facultyApprovalStatus}`
+    });
+  }
 
-        if (publication.facultyApprovalStatus !== 'pending') {
-          return res.status(400).json({
-            message: `Faculty approval already ${publication.facultyApprovalStatus}`
-          });
-        }
+  if (status === 'approved') {
+    publication.facultyApprovalStatus = 'approved';
+    publication.facultyApprovedBy = req.user.id;
+    publication.facultyApprovedAt = new Date();
+    publication.facultyRejectionReason = '';
+    publication.finalStatus = 'pending';
+  } else {
+    publication.facultyApprovalStatus = 'rejected';
+    publication.facultyApprovedBy = req.user.id;
+    publication.facultyApprovedAt = new Date();
+    publication.facultyRejectionReason = rejectionReason || '';
+    publication.finalStatus = 'rejected';
+  }
 
-        if (status === 'approved') {
-          publication.facultyApprovalStatus = 'approved';
-          publication.facultyApprovedBy = req.user.id;
-          publication.facultyApprovedAt = new Date();
-          publication.facultyRejectionReason = '';
-          publication.finalStatus = 'pending';
-        } else {
-          publication.facultyApprovalStatus = 'rejected';
-          publication.facultyApprovedBy = req.user.id;
-          publication.facultyApprovedAt = new Date();
-          publication.facultyRejectionReason = rejectionReason || '';
-          publication.finalStatus = 'rejected';
-        }
+  await publication.save();
 
-        await publication.save();
+  await AuditLog.create({
+    action: status === 'approved'
+      ? 'faculty_approve_publication'
+      : 'faculty_reject_publication',
+    performedBy: req.user.id,
+    role: req.user.role,
+    department: currentUser?.department || '',
+    school: currentUser?.school || '',
+    targetType: 'publication',
+    targetId: publication._id,
+    details:
+      status === 'approved'
+        ? `Faculty approved publication "${publication.title}"`
+        : `Faculty rejected publication "${publication.title}"${rejectionReason ? ` - Reason: ${rejectionReason}` : ''}`
+  });
 
-        await AuditLog.create({
-          action: status === 'approved'
-            ? 'faculty_approve_publication'
-            : 'faculty_reject_publication',
-          performedBy: req.user.id,
-          role: req.user.role,
-          department: currentUser?.department || '',
-          school: currentUser?.school || '',
-          targetType: 'publication',
-          targetId: publication._id,
-          details:
-            status === 'approved'
-              ? `Faculty approved publication "${publication.title}"`
-              : `Faculty rejected publication "${publication.title}"${rejectionReason ? ` - Reason: ${rejectionReason}` : ''}`
-        });
-
-        return res.json({
-          message: `✅ Faculty ${status} publication successfully!`,
-          data: publication
-        });
-      }
+  return res.json({
+    message: `✅ Faculty ${status} publication successfully!`,
+    data: publication
+  });
+}
 
       // DIRECTORATE LEVEL
       if (req.user.role === 'directorate') {
