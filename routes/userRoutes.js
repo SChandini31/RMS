@@ -40,7 +40,7 @@ router.post('/', authMiddleware, allowRoles('super_admin'), async (req, res) => 
       email: email.toLowerCase(),
       password: hashedPassword,
       role,
-      department,
+      department: department.trim().toUpperCase(),
       school
     });
 
@@ -53,6 +53,7 @@ router.post('/', authMiddleware, allowRoles('super_admin'), async (req, res) => 
       performedBy: req.user.id,
       role: req.user.role,
       department: currentUser?.department || '',
+      school: currentUser?.school || '',
       targetType: 'user',
       targetId: user._id,
       details: `Created user ${user.email} with role ${user.role} in ${user.department}`
@@ -193,6 +194,10 @@ router.put('/:id', authMiddleware, allowRoles('super_admin'), async (req, res) =
       updateData.email = updateData.email.toLowerCase();
     }
 
+    if (updateData.department) {
+      updateData.department = updateData.department.trim().toUpperCase();
+    }
+
     const user = await User.findByIdAndUpdate(
       req.params.id,
       updateData,
@@ -206,6 +211,7 @@ router.put('/:id', authMiddleware, allowRoles('super_admin'), async (req, res) =
       performedBy: req.user.id,
       role: req.user.role,
       department: currentUser?.department || '',
+      school: currentUser?.school || '',
       targetType: 'user',
       targetId: user._id,
       details: `Updated user ${user.email}`
@@ -241,6 +247,7 @@ router.delete('/:id', authMiddleware, allowRoles('super_admin'), async (req, res
       performedBy: req.user.id,
       role: req.user.role,
       department: currentUser?.department || '',
+      school: currentUser?.school || '',
       targetType: 'user',
       targetId: deletedUser._id,
       details: `Deleted user ${deletedUser.email}`

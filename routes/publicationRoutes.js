@@ -56,15 +56,26 @@ router.post(
 
       // issue -> number only if provided
       let parsedIssue;
-      if (req.body.issue !== undefined && req.body.issue !== null && req.body.issue !== '') {
+      if (
+        req.body.issue !== undefined &&
+        req.body.issue !== null &&
+        req.body.issue !== ''
+      ) {
         parsedIssue = Number(req.body.issue);
         if (Number.isNaN(parsedIssue)) {
           return res.status(400).json({ error: 'Issue must be a number' });
         }
       }
 
+      // department -> normalize uppercase
+      let normalizedDepartment = '';
+      if (req.body.department) {
+        normalizedDepartment = req.body.department.trim().toUpperCase();
+      }
+
       const publicationData = {
         ...req.body,
+        department: normalizedDepartment,
         authors: parsedAuthors,
         keywords: parsedKeywords,
         affiliation: parsedAffiliation,
@@ -84,12 +95,12 @@ router.post(
 
       // AUDIT LOG
       const currentUser = await User.findById(req.user.id);
-
       await AuditLog.create({
         action: 'upload_publication',
         performedBy: req.user.id,
         role: req.user.role,
         department: currentUser?.department || '',
+        school: currentUser?.school || '',
         targetType: 'publication',
         targetId: publication._id,
         details: `Uploaded publication "${publication.title}"`
@@ -114,8 +125,8 @@ router.get(
   async (req, res) => {
     try {
       const publications = await Publication.find()
-        .populate('uploadedBy', 'name email role department')
-        .populate('approvedBy', 'name email role')
+        .populate('uploadedBy', 'name email role department school')
+        .populate('approvedBy', 'name email role department school')
         .sort({ createdAt: -1 });
 
       res.json(publications);
@@ -138,8 +149,8 @@ router.get(
 
     try {
       const publication = await Publication.findById(req.params.id)
-        .populate('uploadedBy', 'name email role department')
-        .populate('approvedBy', 'name email role');
+        .populate('uploadedBy', 'name email role department school')
+        .populate('approvedBy', 'name email role department school');
 
       if (!publication) {
         return res.status(404).json({ message: 'Publication not found' });
@@ -170,9 +181,16 @@ router.put(
         return res.status(404).json({ message: '❌ Publication not found!' });
       }
 
+      const updateData = { ...req.body };
+
+      // normalize department if updated
+      if (updateData.department) {
+        updateData.department = updateData.department.trim().toUpperCase();
+      }
+
       const updatedPublication = await Publication.findByIdAndUpdate(
         req.params.id,
-        req.body,
+        updateData,
         { new: true, runValidators: true }
       );
 
@@ -183,6 +201,7 @@ router.put(
         performedBy: req.user.id,
         role: req.user.role,
         department: currentUser?.department || '',
+        school: currentUser?.school || '',
         targetType: 'publication',
         targetId: updatedPublication._id,
         details: `Updated publication "${updatedPublication.title}"`
@@ -237,6 +256,7 @@ router.put(
         performedBy: req.user.id,
         role: req.user.role,
         department: currentUser?.department || '',
+        school: currentUser?.school || '',
         targetType: 'publication',
         targetId: publication._id,
         details:
@@ -280,6 +300,7 @@ router.delete(
         performedBy: req.user.id,
         role: req.user.role,
         department: currentUser?.department || '',
+        school: currentUser?.school || '',
         targetType: 'publication',
         targetId: deletedPublication._id,
         details: `Deleted publication "${deletedPublication.title}"`
