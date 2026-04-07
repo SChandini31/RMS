@@ -16,11 +16,11 @@ router.use((req, res, next) => {
 });
 
 // CREATE publication with file upload
-// super_admin removed from add if following strict institutional flow
+// super_admin can add, but cannot approve/reject/delete
 router.post(
   '/',
   authMiddleware,
-  allowRoles('faculty', 'student'),
+  allowRoles('super_admin', 'faculty', 'student'),
   upload.single('file'),
   async (req, res) => {
     try {
@@ -148,9 +148,12 @@ router.get(
 
       let filter = {};
 
-      if (req.user.role === 'faculty' || req.user.role === 'student') {
+      if (req.user.role === 'student') {
+        // student -> only own publications
         filter.uploadedBy = req.user.id;
+        filter.department = currentUser.department;
       } else if (req.user.role === 'admin') {
+        // admin -> department-wise publications
         filter.department = currentUser.department;
       }
       // super_admin, directorate, special_user -> all
@@ -194,16 +197,19 @@ router.get(
         return res.status(404).json({ message: 'Publication not found' });
       }
 
-      if (
-        (req.user.role === 'faculty' || req.user.role === 'student') &&
-        String(publication.uploadedBy?._id || publication.uploadedBy) !== String(req.user.id)
-      ) {
-        return res.status(403).json({ message: 'Access denied' });
+      if (req.user.role === 'student') {
+        if (String(publication.uploadedBy?._id || publication.uploadedBy) !== String(req.user.id)) {
+          return res.status(403).json({ message: 'Access denied' });
+        }
       }
 
-      if (req.user.role === 'admin' && publication.department !== currentUser.department) {
-        return res.status(403).json({ message: 'Access denied for this department' });
+      if (req.user.role === 'admin') {
+        if (publication.department !== currentUser.department) {
+          return res.status(403).json({ message: 'Access denied for this department' });
+        }
       }
+
+      // super_admin, directorate, special_user -> allowed for all
 
       res.json(publication);
     } catch (error) {
@@ -261,6 +267,13 @@ router.put(
 
       // FACULTY LEVEL
       if (req.user.role === 'faculty') {
+        // faculty can only act on publications from their department
+        if (publication.department !== currentUser.department) {
+          return res.status(403).json({
+            message: 'Faculty can only review publications from their department'
+          });
+        }
+
         if (publication.facultyApprovalStatus !== 'pending') {
           return res.status(400).json({
             message: `Faculty approval already ${publication.facultyApprovalStatus}`
