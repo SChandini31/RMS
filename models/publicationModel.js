@@ -86,26 +86,56 @@ const publicationSchema = new mongoose.Schema(
       ref: 'User'
     },
 
-    status: {
+    // ---------- MULTI-LEVEL APPROVAL FLOW ----------
+
+    facultyApprovalStatus: {
       type: String,
       enum: ['pending', 'approved', 'rejected'],
       default: 'pending'
     },
 
-    approvedBy: {
+    facultyApprovedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       default: null
     },
 
-    approvedAt: {
+    facultyApprovedAt: {
       type: Date,
       default: null
     },
 
-    rejectionReason: {
+    facultyRejectionReason: {
       type: String,
       default: ''
+    },
+
+    directorateApprovalStatus: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected'],
+      default: 'pending'
+    },
+
+    directorateApprovedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
+    },
+
+    directorateApprovedAt: {
+      type: Date,
+      default: null
+    },
+
+    directorateRejectionReason: {
+      type: String,
+      default: ''
+    },
+
+    finalStatus: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected'],
+      default: 'pending'
     }
   },
   { timestamps: true }

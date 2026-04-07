@@ -16,13 +16,19 @@ router.use((req, res, next) => {
 });
 
 // CREATE publication with file upload
+// super_admin removed from add if following strict institutional flow
 router.post(
   '/',
   authMiddleware,
-  allowRoles('super_admin', 'faculty', 'student'),
+  allowRoles('faculty', 'student'),
   upload.single('file'),
   async (req, res) => {
     try {
+      const currentUser = await User.findById(req.user.id);
+      if (!currentUser) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
       // authors -> JSON array
       let parsedAuthors = [];
       if (req.body.authors) {
@@ -67,14 +73,14 @@ router.post(
         }
       }
 
-      // department -> normalize uppercase
-      let normalizedDepartment = '';
-      if (req.body.department) {
-        normalizedDepartment = req.body.department.trim().toUpperCase();
-      }
+      // department -> normalize uppercase, prefer logged-in user's department
+      const normalizedDepartment = (currentUser.department || req.body.department || '')
+        .trim()
+        .toUpperCase();
 
       const publicationData = {
         ...req.body,
+        school: currentUser.school || req.body.school || '',
         department: normalizedDepartment,
         authors: parsedAuthors,
         keywords: parsedKeywords,
@@ -84,7 +90,20 @@ router.post(
         public_id: req.file?.filename || '',
         fileName: req.file?.originalname || '',
         mimeType: req.file?.mimetype || '',
-        uploadedBy: req.user?.id || null
+        uploadedBy: req.user?.id || null,
+
+        // multi-level approval defaults
+        facultyApprovalStatus: 'pending',
+        facultyApprovedBy: null,
+        facultyApprovedAt: null,
+        facultyRejectionReason: '',
+
+        directorateApprovalStatus: 'pending',
+        directorateApprovedBy: null,
+        directorateApprovedAt: null,
+        directorateRejectionReason: '',
+
+        finalStatus: 'pending'
       };
 
       console.log('REQ BODY:', req.body);
@@ -93,8 +112,6 @@ router.post(
 
       const publication = await Publication.create(publicationData);
 
-      // AUDIT LOG
-      const currentUser = await User.findById(req.user.id);
       await AuditLog.create({
         action: 'upload_publication',
         performedBy: req.user.id,
@@ -117,16 +134,31 @@ router.post(
   }
 );
 
-// GET all publications
+// GET all publications with backend role-based filtering
 router.get(
   '/',
   authMiddleware,
   allowRoles('super_admin', 'faculty', 'student', 'admin', 'special_user', 'directorate'),
   async (req, res) => {
     try {
-      const publications = await Publication.find()
+      const currentUser = await User.findById(req.user.id);
+      if (!currentUser) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      let filter = {};
+
+      if (req.user.role === 'faculty' || req.user.role === 'student') {
+        filter.uploadedBy = req.user.id;
+      } else if (req.user.role === 'admin') {
+        filter.department = currentUser.department;
+      }
+      // super_admin, directorate, special_user -> all
+
+      const publications = await Publication.find(filter)
         .populate('uploadedBy', 'name email role department school')
-        .populate('approvedBy', 'name email role department school')
+        .populate('facultyApprovedBy', 'name email role department school')
+        .populate('directorateApprovedBy', 'name email role department school')
         .sort({ createdAt: -1 });
 
       res.json(publications);
@@ -137,7 +169,7 @@ router.get(
   }
 );
 
-// GET single publication by ID
+// GET single publication by ID with access control
 router.get(
   '/:id',
   authMiddleware,
@@ -148,12 +180,29 @@ router.get(
     }
 
     try {
+      const currentUser = await User.findById(req.user.id);
+      if (!currentUser) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
       const publication = await Publication.findById(req.params.id)
         .populate('uploadedBy', 'name email role department school')
-        .populate('approvedBy', 'name email role department school');
+        .populate('facultyApprovedBy', 'name email role department school')
+        .populate('directorateApprovedBy', 'name email role department school');
 
       if (!publication) {
         return res.status(404).json({ message: 'Publication not found' });
+      }
+
+      if (
+        (req.user.role === 'faculty' || req.user.role === 'student') &&
+        String(publication.uploadedBy?._id || publication.uploadedBy) !== String(req.user.id)
+      ) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
+      if (req.user.role === 'admin' && publication.department !== currentUser.department) {
+        return res.status(403).json({ message: 'Access denied for this department' });
       }
 
       res.json(publication);
@@ -164,69 +213,26 @@ router.get(
   }
 );
 
-// UPDATE publication by ID -> only super_admin
+// UPDATE publication disabled in current workflow
 router.put(
   '/:id',
   authMiddleware,
-  allowRoles('super_admin'),
   async (req, res) => {
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      return res.status(400).json({ error: 'Invalid ID format' });
-    }
-
-    try {
-      const existingPublication = await Publication.findById(req.params.id);
-
-      if (!existingPublication) {
-        return res.status(404).json({ message: '❌ Publication not found!' });
-      }
-
-      const updateData = { ...req.body };
-
-      // normalize department if updated
-      if (updateData.department) {
-        updateData.department = updateData.department.trim().toUpperCase();
-      }
-
-      const updatedPublication = await Publication.findByIdAndUpdate(
-        req.params.id,
-        updateData,
-        { new: true, runValidators: true }
-      );
-
-      // AUDIT LOG
-      const currentUser = await User.findById(req.user.id);
-      await AuditLog.create({
-        action: 'update_publication',
-        performedBy: req.user.id,
-        role: req.user.role,
-        department: currentUser?.department || '',
-        school: currentUser?.school || '',
-        targetType: 'publication',
-        targetId: updatedPublication._id,
-        details: `Updated publication "${updatedPublication.title}"`
-      });
-
-      res.json({
-        message: '✅ Publication updated successfully!',
-        data: updatedPublication
-      });
-    } catch (error) {
-      console.error('UPDATE PUBLICATION ERROR:', error);
-      res.status(400).json({ error: error.message });
-    }
+    return res.status(403).json({
+      message: 'Publication update is disabled in the current workflow'
+    });
   }
 );
 
-// APPROVE / REJECT publication
+// MULTI-LEVEL APPROVE / REJECT publication
 router.put(
   '/:id/status',
   authMiddleware,
-  allowRoles('super_admin', 'directorate'),
+  allowRoles('faculty', 'directorate'),
   async (req, res) => {
     const { status, rejectionReason } = req.body;
 
-    if (!['approved', 'rejected', 'pending'].includes(status)) {
+    if (!['approved', 'rejected'].includes(status)) {
       return res.status(400).json({ error: 'Invalid status value' });
     }
 
@@ -236,39 +242,122 @@ router.put(
 
     try {
       const publication = await Publication.findById(req.params.id);
+      const currentUser = await User.findById(req.user.id);
 
       if (!publication) {
         return res.status(404).json({ message: 'Publication not found' });
       }
 
-      publication.status = status;
-      publication.approvedBy = req.user?.id || null;
-      publication.approvedAt = new Date();
-      publication.rejectionReason =
-        status === 'rejected' ? (rejectionReason || '') : '';
+      if (!currentUser) {
+        return res.status(404).json({ message: 'User not found' });
+      }
 
-      await publication.save();
+      // once final decision is made, stop further actions
+      if (publication.finalStatus !== 'pending') {
+        return res.status(400).json({
+          message: `Publication is already ${publication.finalStatus}`
+        });
+      }
 
-      // AUDIT LOG
-      const currentUser = await User.findById(req.user.id);
-      await AuditLog.create({
-        action: status === 'approved' ? 'approve_publication' : 'reject_publication',
-        performedBy: req.user.id,
-        role: req.user.role,
-        department: currentUser?.department || '',
-        school: currentUser?.school || '',
-        targetType: 'publication',
-        targetId: publication._id,
-        details:
-          status === 'approved'
-            ? `Approved publication "${publication.title}"`
-            : `Rejected publication "${publication.title}"${rejectionReason ? ` - Reason: ${rejectionReason}` : ''}`
-      });
+      // FACULTY LEVEL
+      if (req.user.role === 'faculty') {
+        if (publication.facultyApprovalStatus !== 'pending') {
+          return res.status(400).json({
+            message: `Faculty approval already ${publication.facultyApprovalStatus}`
+          });
+        }
 
-      res.json({
-        message: `✅ Publication ${status} successfully!`,
-        data: publication
-      });
+        if (status === 'approved') {
+          publication.facultyApprovalStatus = 'approved';
+          publication.facultyApprovedBy = req.user.id;
+          publication.facultyApprovedAt = new Date();
+          publication.facultyRejectionReason = '';
+          publication.finalStatus = 'pending';
+        } else {
+          publication.facultyApprovalStatus = 'rejected';
+          publication.facultyApprovedBy = req.user.id;
+          publication.facultyApprovedAt = new Date();
+          publication.facultyRejectionReason = rejectionReason || '';
+          publication.finalStatus = 'rejected';
+        }
+
+        await publication.save();
+
+        await AuditLog.create({
+          action: status === 'approved'
+            ? 'faculty_approve_publication'
+            : 'faculty_reject_publication',
+          performedBy: req.user.id,
+          role: req.user.role,
+          department: currentUser?.department || '',
+          school: currentUser?.school || '',
+          targetType: 'publication',
+          targetId: publication._id,
+          details:
+            status === 'approved'
+              ? `Faculty approved publication "${publication.title}"`
+              : `Faculty rejected publication "${publication.title}"${rejectionReason ? ` - Reason: ${rejectionReason}` : ''}`
+        });
+
+        return res.json({
+          message: `✅ Faculty ${status} publication successfully!`,
+          data: publication
+        });
+      }
+
+      // DIRECTORATE LEVEL
+      if (req.user.role === 'directorate') {
+        if (publication.facultyApprovalStatus !== 'approved') {
+          return res.status(400).json({
+            message: 'Directorate can act only after faculty approval'
+          });
+        }
+
+        if (publication.directorateApprovalStatus !== 'pending') {
+          return res.status(400).json({
+            message: `Directorate approval already ${publication.directorateApprovalStatus}`
+          });
+        }
+
+        if (status === 'approved') {
+          publication.directorateApprovalStatus = 'approved';
+          publication.directorateApprovedBy = req.user.id;
+          publication.directorateApprovedAt = new Date();
+          publication.directorateRejectionReason = '';
+          publication.finalStatus = 'approved';
+        } else {
+          publication.directorateApprovalStatus = 'rejected';
+          publication.directorateApprovedBy = req.user.id;
+          publication.directorateApprovedAt = new Date();
+          publication.directorateRejectionReason = rejectionReason || '';
+          publication.finalStatus = 'rejected';
+        }
+
+        await publication.save();
+
+        await AuditLog.create({
+          action: status === 'approved'
+            ? 'directorate_approve_publication'
+            : 'directorate_reject_publication',
+          performedBy: req.user.id,
+          role: req.user.role,
+          department: currentUser?.department || '',
+          school: currentUser?.school || '',
+          targetType: 'publication',
+          targetId: publication._id,
+          details:
+            status === 'approved'
+              ? `Directorate approved publication "${publication.title}"`
+              : `Directorate rejected publication "${publication.title}"${rejectionReason ? ` - Reason: ${rejectionReason}` : ''}`
+        });
+
+        return res.json({
+          message: `✅ Directorate ${status} publication successfully!`,
+          data: publication
+        });
+      }
+
+      return res.status(403).json({ message: 'Access denied' });
     } catch (error) {
       console.error('STATUS UPDATE ERROR:', error);
       res.status(500).json({ error: error.message });
@@ -276,41 +365,14 @@ router.put(
   }
 );
 
-// DELETE publication by ID -> only super_admin
+// DELETE publication disabled in current workflow
 router.delete(
   '/:id',
   authMiddleware,
-  allowRoles('super_admin'),
   async (req, res) => {
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      return res.status(400).json({ error: 'Invalid ID format' });
-    }
-
-    try {
-      const deletedPublication = await Publication.findByIdAndDelete(req.params.id);
-
-      if (!deletedPublication) {
-        return res.status(404).json({ message: '❌ Publication not found!' });
-      }
-
-      // AUDIT LOG
-      const currentUser = await User.findById(req.user.id);
-      await AuditLog.create({
-        action: 'delete_publication',
-        performedBy: req.user.id,
-        role: req.user.role,
-        department: currentUser?.department || '',
-        school: currentUser?.school || '',
-        targetType: 'publication',
-        targetId: deletedPublication._id,
-        details: `Deleted publication "${deletedPublication.title}"`
-      });
-
-      res.json({ message: '🗑️ Publication deleted successfully!' });
-    } catch (error) {
-      console.error('DELETE PUBLICATION ERROR:', error);
-      res.status(500).json({ error: error.message });
-    }
+    return res.status(403).json({
+      message: 'Publication delete is disabled in the current workflow'
+    });
   }
 );
 
