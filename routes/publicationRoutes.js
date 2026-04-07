@@ -156,7 +156,7 @@ router.get(
         // admin -> department-wise publications
         filter.department = currentUser.department;
       }
-      // super_admin, directorate, special_user -> all
+      // super_admin, directorate, faculty, special_user -> all
 
       const publications = await Publication.find(filter)
         .populate('uploadedBy', 'name email role department school')
