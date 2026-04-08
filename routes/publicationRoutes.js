@@ -73,38 +73,38 @@ router.post(
         }
       }
 
-      // department -> normalize uppercase, prefer logged-in user's department
-      const normalizedDepartment = (currentUser.department || req.body.department || '')
-        .trim()
-        .toUpperCase();
+const normalizedDepartment = (req.body.department || "").trim().toUpperCase();
 
-      const publicationData = {
-        ...req.body,
-        school: currentUser.school || req.body.school || '',
-        department: normalizedDepartment,
-        authors: parsedAuthors,
-        keywords: parsedKeywords,
-        affiliation: parsedAffiliation,
-        issue: parsedIssue,
-        upload: req.file?.path || '',
-        public_id: req.file?.filename || '',
-        fileName: req.file?.originalname || '',
-        mimeType: req.file?.mimetype || '',
-        uploadedBy: req.user?.id || null,
+if (!normalizedDepartment) {
+  return res.status(400).json({ message: "Department is required" });
+}
 
-        // multi-level approval defaults
-        facultyApprovalStatus: 'pending',
-        facultyApprovedBy: null,
-        facultyApprovedAt: null,
-        facultyRejectionReason: '',
+const publicationData = {
+  ...req.body,
+  school: req.body.school || currentUser.school || "",
+  department: normalizedDepartment,
+  authors: parsedAuthors,
+  keywords: parsedKeywords,
+  affiliation: parsedAffiliation,
+  issue: parsedIssue,
+  upload: req.file?.path || "",
+  public_id: req.file?.filename || "",
+  fileName: req.file?.originalname || "",
+  mimeType: req.file?.mimetype || "",
+  uploadedBy: req.user?.id || null,
 
-        directorateApprovalStatus: 'pending',
-        directorateApprovedBy: null,
-        directorateApprovedAt: null,
-        directorateRejectionReason: '',
+  facultyApprovalStatus: "pending",
+  facultyApprovedBy: null,
+  facultyApprovedAt: null,
+  facultyRejectionReason: "",
 
-        finalStatus: 'pending'
-      };
+  directorateApprovalStatus: "pending",
+  directorateApprovedBy: null,
+  directorateApprovedAt: null,
+  directorateRejectionReason: "",
+
+  finalStatus: "pending",
+};
 
       console.log('REQ BODY:', req.body);
       console.log('PARSED PUBLICATION DATA:', publicationData);
