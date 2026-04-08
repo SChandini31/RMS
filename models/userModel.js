@@ -17,7 +17,7 @@ const userSchema = new mongoose.Schema({
   },
   department: { type: String, required: true, trim: true },
   school: { type: String, required: true, trim: true },
-  contact_number: { type: String, trim: true },
+  contact_number: { type: Number, trim: true },
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);

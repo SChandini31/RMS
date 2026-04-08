@@ -22,9 +22,9 @@ const transporter = nodemailer.createTransport({
 // CREATE user -> only super_admin
 router.post('/', authMiddleware, allowRoles('super_admin'), async (req, res) => {
   try {
-    const { name, email, password, role, department, school } = req.body;
+    const { name, email, password, role, department, school, contact} = req.body;
 
-    if (!name || !email || !password || !role || !department || !school) {
+    if (!name || !email || !password || !role || !department || !school || !contact_number) {
       return res.status(400).json({ message: 'All fields are required' });
     }
 
@@ -41,7 +41,8 @@ router.post('/', authMiddleware, allowRoles('super_admin'), async (req, res) => 
       password: hashedPassword,
       role,
       department: department.trim().toUpperCase(),
-      school
+      school,
+      contact_number: contact.trim()
     });
 
     const safeUser = await User.findById(user._id).select('-password');
@@ -78,6 +79,7 @@ try {
         <p><b>Role:</b> ${user.role}</p>
         <p><b>Department:</b> ${user.department}</p>
         <p><b>School:</b> ${user.school}</p>
+        <p><b>Contact Number:</b> ${user.contact_number}</p>
         <p>Please login and change your password.</p>
       `
     }),
@@ -193,6 +195,10 @@ router.put('/:id', authMiddleware, allowRoles('super_admin'), async (req, res) =
     if (updateData.email) {
       updateData.email = updateData.email.toLowerCase();
     }
+
+    if (updateData.contact_number) {
+      updateData.contact_number = updateData.contact_number.trim();
+    } 
 
     if (updateData.department) {
       updateData.department = updateData.department.trim().toUpperCase();
