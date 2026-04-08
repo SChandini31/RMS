@@ -73,6 +73,19 @@ router.post(
         }
       }
 
+
+      const normalizeSchool = (value = "") => {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+    .replace(/\bOf\b/g, "of")
+    .replace(/\bAnd\b/g, "and");
+};
+
+const normalizedSchool = normalizeSchool(req.body.school || "");
+
 const normalizedDepartment = (req.body.department || "").trim().toUpperCase();
 
 if (!normalizedDepartment) {
@@ -81,7 +94,7 @@ if (!normalizedDepartment) {
 
 const publicationData = {
   ...req.body,
-  school: req.body.school || currentUser.school || "",
+  school: normalizedSchool,
   department: normalizedDepartment,
   authors: parsedAuthors,
   keywords: parsedKeywords,
