@@ -125,114 +125,18 @@ router.get('/publications/export/excel', authMiddleware, async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    let filter = {
-      createdAt: { $gte: fromDate, $lte: toDate }
-    };
-    if (req.user.role === 'admin') {
-      filter.department = currentUser.department;
-    } else if (req.user.role === 'faculty' || req.user.role === 'student') {
-      filter.uploadedBy = req.user.id;
-    }
-
-    const publications = await Publication.find(filter)
-      .populate('uploadedBy', 'name email role department school')
-      .populate('facultyApprovedBy', 'name email role department school')
-      .populate('directorateApprovedBy', 'name email role department school')
-      .sort({ createdAt: -1 });
+    const result = await getPublicationReportData(req);
 
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Publications');
+    const worksheet = workbook.addWorksheet('Publication Counts');
 
     worksheet.columns = [
-      { header: 'Title', key: 'title', width: 40 },
-      { header: 'Type', key: 'publication_type', width: 20 },
-      { header: 'Institution/Organization', key: 'institution_organization', width: 30 },
-      { header: 'School', key: 'school', width: 20 },
-      { header: 'Department', key: 'department', width: 20 },
-      { header: 'Authors', key: 'authors', width: 40 },
-      { header: 'Authors JSON', key: 'authors_json', width: 60 },
-      { header: 'Date of Publication', key: 'date_of_publication', width: 18 },
-      { header: 'Journal/Book', key: 'journal_name', width: 30 },
-      { header: 'ISSN', key: 'issn', width: 18 },
-      { header: 'POI URL', key: 'poi_url', width: 40 },
-      { header: 'Volume', key: 'volume', width: 10 },
-      { header: 'Issue', key: 'issue', width: 8 },
-      { header: 'Abstract', key: 'abstract', width: 60 },
-      { header: 'Keywords', key: 'keywords', width: 30 },
-      { header: 'DOI', key: 'DOI', width: 30 },
-      { header: 'Affiliation', key: 'affiliation', width: 40 },
-      { header: 'Upload Path', key: 'upload', width: 40 },
-      { header: 'Public ID', key: 'public_id', width: 30 },
-      { header: 'File Name', key: 'fileName', width: 30 },
-      { header: 'MIME Type', key: 'mimeType', width: 20 },
-      { header: 'Index', key: 'index', width: 15 },
-      { header: 'Scopus ID', key: 'scopus_id', width: 20 },
-      { header: 'Funding Source', key: 'funding_source', width: 30 },
-      { header: 'Additional Notes', key: 'additional_notes', width: 40 },
-      { header: 'Uploaded By', key: 'uploadedBy', width: 25 },
-      { header: 'Uploaded By ID', key: 'uploadedById', width: 25 },
-      { header: 'Faculty Status', key: 'facultyApprovalStatus', width: 15 },
-      { header: 'Faculty Approved By', key: 'facultyApprovedBy', width: 25 },
-      { header: 'Faculty Approved By ID', key: 'facultyApprovedById', width: 25 },
-      { header: 'Faculty Approved At', key: 'facultyApprovedAt', width: 20 },
-      { header: 'Faculty Rejection Reason', key: 'facultyRejectionReason', width: 40 },
-      { header: 'Directorate Status', key: 'directorateApprovalStatus', width: 15 },
-      { header: 'Directorate Approved By', key: 'directorateApprovedBy', width: 25 },
-      { header: 'Directorate Approved By ID', key: 'directorateApprovedById', width: 25 },
-      { header: 'Directorate Approved At', key: 'directorateApprovedAt', width: 20 },
-      { header: 'Directorate Rejection Reason', key: 'directorateRejectionReason', width: 40 },
-      { header: 'Final Status', key: 'finalStatus', width: 12 },
-      { header: 'Created At', key: 'createdAt', width: 20 },
-      { header: 'Updated At', key: 'updatedAt', width: 20 }
+      { header: 'Uploaded Date', key: 'label', width: 20 },
+      { header: 'Count', key: 'value', width: 15 }
     ];
 
-    publications.forEach((p) => {
-      const authors = (p.authors || []).map((a) => `${a.name || ''}${a.author_type ? ` (${a.author_type})` : ''}`).join('; ');
-      const keywords = (p.keywords || []).join(', ');
-      const affiliation = (p.affiliation || []).join(', ');
-
-      worksheet.addRow({
-        title: p.title || '',
-        publication_type: p.publication_type || '',
-        institution_organization: p.institution_organization || '',
-        school: p.school || '',
-        department: p.department || '',
-        authors,
-        authors_json: JSON.stringify(p.authors || []),
-        date_of_publication: p.date_of_publication ? new Date(p.date_of_publication).toLocaleDateString() : '',
-        journal_name: p.journal_name || '',
-        issn: p.issn || '',
-        poi_url: p.poi_url || '',
-        volume: p.volume || '',
-        issue: p.issue || '',
-        abstract: p.abstract || '',
-        keywords,
-        DOI: p.DOI || '',
-        affiliation,
-        upload: p.upload || '',
-        public_id: p.public_id || '',
-        fileName: p.fileName || '',
-        mimeType: p.mimeType || '',
-        index: p.index || '',
-        scopus_id: p.scopus_id || '',
-        funding_source: p.funding_source || '',
-        additional_notes: p.additional_notes || '',
-        uploadedBy: p.uploadedBy?.name || '',
-        uploadedById: p.uploadedBy?._id || '',
-        facultyApprovalStatus: p.facultyApprovalStatus || '',
-        facultyApprovedBy: p.facultyApprovedBy?.name || '',
-        facultyApprovedById: p.facultyApprovedBy?._id || '',
-        facultyApprovedAt: p.facultyApprovedAt ? new Date(p.facultyApprovedAt).toLocaleString() : '',
-        facultyRejectionReason: p.facultyRejectionReason || '',
-        directorateApprovalStatus: p.directorateApprovalStatus || '',
-        directorateApprovedBy: p.directorateApprovedBy?.name || '',
-        directorateApprovedById: p.directorateApprovedBy?._id || '',
-        directorateApprovedAt: p.directorateApprovedAt ? new Date(p.directorateApprovedAt).toLocaleString() : '',
-        directorateRejectionReason: p.directorateRejectionReason || '',
-        finalStatus: p.finalStatus || '',
-        createdAt: p.createdAt ? new Date(p.createdAt).toLocaleString() : '',
-        updatedAt: p.updatedAt ? new Date(p.updatedAt).toLocaleString() : ''
-      });
+    result.data.forEach((row) => {
+      worksheet.addRow(row);
     });
 
     await AuditLog.create({
