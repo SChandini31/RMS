@@ -1,39 +1,108 @@
 const mongoose = require('mongoose');
 
+const publicationTypes = require('../config/publicationTypes');
+const authorSchema = require('./publication/author.schema');
+
+const publicationTypeValues = publicationTypes.map(
+  (type) => type.value
+);
+
 const publicationSchema = new mongoose.Schema(
   {
-    institution_organization: { type: String, trim: true },
-    school: { type: String, trim: true },
-    department: { type: String, trim: true },
+    // =========================================================
+    // COMMON INFORMATION
+    // =========================================================
 
-    publication_type: { type: String, trim: true }, // journal, chapter book, books, conference, others
-    title: { type: String, required: true, trim: true },
-
-    authors: [
-      {
-        name: { type: String, trim: true },
-        author_type: { type: String, trim: true } // first author, second author, co-author
-      }
-    ],
-
-    date_of_publication: Date,
-    journal_name: { type: String, trim: true },
-
-    issn: {
+    institution_organization: {
       type: String,
       trim: true
     },
 
-    poi_url: { type: String, trim: true },
-    volume: { type: String, trim: true },
-    issue: Number,
+    school: {
+      type: String,
+      trim: true
+    },
+
+    department: {
+      type: String,
+      trim: true
+    },
+
+    faculty: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
+    },
+
+    // =========================================================
+    // PUBLICATION TYPE
+    // =========================================================
+
+    publication_type: {
+      type: String,
+      required: true,
+      enum: publicationTypeValues
+    },
+
+    // =========================================================
+    // COMMON TITLE
+    // =========================================================
+
+    title: {
+      type: String,
+      required: true,
+      trim: true
+    },
+
+    // =========================================================
+    // AUTHORS
+    // =========================================================
+
+    authors: {
+      type: [authorSchema],
+      default: []
+    },
+
+    // =========================================================
+    // TYPE-SPECIFIC DATA
+    // =========================================================
+    //
+    // The actual structure of this field is validated
+    // according to publication_type in publicationValidator.js
+    //
+    // journal          -> journalSchema
+    // book             -> bookSchema
+    // book_chapter     -> bookChapterSchema
+    // conference       -> conferenceSchema
+    // patent           -> patentSchema
+    // research_project -> researchProjectSchema
+    // consultancy      -> consultancySchema
+    // research_collaboration -> researchCollaborationSchema
+    // research_support -> researchSupportSchema
+    //
+    // =========================================================
+
+    type_details: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {}
+    },
+
+    // =========================================================
+    // COMMON OPTIONAL INFORMATION
+    // =========================================================
 
     abstract: {
       type: String,
+      trim: true,
       validate: {
         validator: function (value) {
           if (!value) return true;
-          const wordCount = value.trim().split(/\s+/).length;
+
+          const wordCount = value
+            .trim()
+            .split(/\s+/)
+            .length;
+
           return wordCount <= 350;
         },
         message: 'Abstract must not exceed 350 words'
@@ -42,51 +111,70 @@ const publicationSchema = new mongoose.Schema(
 
     keywords: {
       type: [String],
+      default: [],
       validate: {
         validator: function (value) {
-          if (!value) return true;
+          if (!value || value.length === 0) return true;
+
           const combinedLength = value.join(', ').length;
+
           return combinedLength <= 150;
         },
         message: 'Keywords must not exceed 150 characters'
       }
     },
 
-    DOI: { type: String, trim: true },
-    affiliation: [{ type: String, trim: true }],
+    // =========================================================
+    // FILE INFORMATION
+    // =========================================================
 
-    // uploaded file path/url
-    upload: { type: String, trim: true },
-    public_id: { type: String, trim: true },
-    fileName: { type: String, trim: true },
-    mimeType: { type: String, trim: true },
-
-    index: { type: String, trim: true },
-
-    scopus_id: {
+    upload: {
       type: String,
-      required: false,
-      trim: true
+      trim: true,
+      default: ''
     },
 
-    funding_source: {
+    public_id: {
       type: String,
-      required: false,
-      trim: true
+      trim: true,
+      default: ''
     },
+
+    fileName: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+
+    mimeType: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+
+    // =========================================================
+    // ADDITIONAL INFORMATION
+    // =========================================================
 
     additional_notes: {
       type: String,
-      required: false,
-      trim: true
+      trim: true,
+      default: ''
     },
+
+    // =========================================================
+    // CREATED / UPLOADED BY
+    // =========================================================
 
     uploadedBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User'
+      ref: 'User',
+      default: null
     },
 
-    // ---------- MULTI-LEVEL APPROVAL FLOW ----------
+    // =========================================================
+    // FACULTY APPROVAL
+    // =========================================================
 
     facultyApprovalStatus: {
       type: String,
@@ -110,6 +198,10 @@ const publicationSchema = new mongoose.Schema(
       default: ''
     },
 
+    // =========================================================
+    // DIRECTORATE APPROVAL
+    // =========================================================
+
     directorateApprovalStatus: {
       type: String,
       enum: ['pending', 'approved', 'rejected'],
@@ -132,13 +224,22 @@ const publicationSchema = new mongoose.Schema(
       default: ''
     },
 
+    // =========================================================
+    // FINAL STATUS
+    // =========================================================
+
     finalStatus: {
       type: String,
       enum: ['pending', 'approved', 'rejected'],
       default: 'pending'
     }
   },
-  { timestamps: true }
+  {
+    timestamps: true
+  }
 );
 
-module.exports = mongoose.model('Publication', publicationSchema);
+module.exports = mongoose.model(
+  'Publication',
+  publicationSchema
+);
