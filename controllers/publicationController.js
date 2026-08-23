@@ -12,6 +12,10 @@ const publicationTypes = require('../config/publicationTypes');
 const createPublication = async (req, res) => {
   try {
 
+    // --------------------------------------------------------
+    // GET COMMON FIELDS
+    // --------------------------------------------------------
+
     const {
       institution_organization,
       school,
@@ -19,16 +23,61 @@ const createPublication = async (req, res) => {
       faculty,
       publication_type,
       title,
-      authors,
       abstract,
-      keywords,
-      type_details,
       upload,
       public_id,
       fileName,
       mimeType,
       additional_notes
     } = req.body;
+
+
+    // --------------------------------------------------------
+    // PARSE JSON FIELDS FROM FORM-DATA
+    // --------------------------------------------------------
+
+    let authors = req.body.authors;
+    let keywords = req.body.keywords;
+    let type_details = req.body.type_details;
+
+
+    // AUTHORS
+    if (typeof authors === 'string') {
+      try {
+        authors = JSON.parse(authors);
+      } catch (error) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid authors data'
+        });
+      }
+    }
+
+
+    // KEYWORDS
+    if (typeof keywords === 'string') {
+      try {
+        keywords = JSON.parse(keywords);
+      } catch (error) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid keywords data'
+        });
+      }
+    }
+
+
+    // TYPE DETAILS
+    if (typeof type_details === 'string') {
+      try {
+        type_details = JSON.parse(type_details);
+      } catch (error) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid type_details data'
+        });
+      }
+    }
 
 
     // --------------------------------------------------------
@@ -89,12 +138,18 @@ const createPublication = async (req, res) => {
 
       title,
 
+      // IMPORTANT:
+      // Now this is an actual array, not a string
       authors: authors || [],
 
+      // IMPORTANT:
+      // Now this is an actual object, not a string
       type_details: type_details || {},
 
       abstract: abstract || '',
 
+      // IMPORTANT:
+      // Now this is an actual array
       keywords: keywords || [],
 
       upload: fileData.upload,
@@ -125,9 +180,13 @@ const createPublication = async (req, res) => {
     // --------------------------------------------------------
 
     return res.status(201).json({
+
       success: true,
+
       message: 'Publication created successfully',
+
       publication: savedPublication
+
     });
 
 
@@ -139,10 +198,15 @@ const createPublication = async (req, res) => {
     );
 
     return res.status(500).json({
+
       success: false,
+
       message: 'Failed to create publication',
+
       error: error.message
+
     });
+
   }
 };
 
