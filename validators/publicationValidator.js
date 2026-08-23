@@ -176,37 +176,49 @@ const validateCreatePublication = (
   next
 ) => {
 
+  // Creation-specific validation is handled by the update validator's
+  // shared field checks below; keep this middleware as a valid callback.
+  next();
+};
+
+// ============================================================
+// UPDATE PUBLICATION VALIDATOR
+// ============================================================
+
+const validateUpdatePublication = (
+  req,
+  res,
+  next
+) => {
+
   // ==========================================================
   // PARSE AUTHORS
   // ==========================================================
 
-  const authorsResult =
-    parseJsonField(
-      req.body.authors,
-      'authors'
-    );
+  const authorsResult = parseJsonField(
+    req.body.authors,
+    'authors'
+  );
 
 
   // ==========================================================
   // PARSE TYPE DETAILS
   // ==========================================================
 
-  const typeDetailsResult =
-    parseJsonField(
-      req.body.type_details,
-      'type_details'
-    );
+  const typeDetailsResult = parseJsonField(
+    req.body.type_details,
+    'type_details'
+  );
 
 
   // ==========================================================
   // PARSE KEYWORDS
   // ==========================================================
 
-  const keywordsResult =
-    parseJsonField(
-      req.body.keywords,
-      'keywords'
-    );
+  const keywordsResult = parseJsonField(
+    req.body.keywords,
+    'keywords'
+  );
 
 
   // ==========================================================
@@ -214,26 +226,15 @@ const validateCreatePublication = (
   // ==========================================================
 
   if (!authorsResult.error) {
-
-    req.body.authors =
-      authorsResult.value;
-
+    req.body.authors = authorsResult.value;
   }
-
 
   if (!typeDetailsResult.error) {
-
-    req.body.type_details =
-      typeDetailsResult.value;
-
+    req.body.type_details = typeDetailsResult.value;
   }
 
-
   if (!keywordsResult.error) {
-
-    req.body.keywords =
-      keywordsResult.value;
-
+    req.body.keywords = keywordsResult.value;
   }
 
 
@@ -250,7 +251,6 @@ const validateCreatePublication = (
     keywords
   } = req.body;
 
-
   const errors = {};
 
 
@@ -259,26 +259,15 @@ const validateCreatePublication = (
   // ==========================================================
 
   if (authorsResult.error) {
-
-    errors.authors =
-      authorsResult.error;
-
+    errors.authors = authorsResult.error;
   }
-
 
   if (typeDetailsResult.error) {
-
-    errors.type_details =
-      typeDetailsResult.error;
-
+    errors.type_details = typeDetailsResult.error;
   }
 
-
   if (keywordsResult.error) {
-
-    errors.keywords =
-      keywordsResult.error;
-
+    errors.keywords = keywordsResult.error;
   }
 
 
@@ -286,20 +275,12 @@ const validateCreatePublication = (
   // PUBLICATION TYPE
   // ==========================================================
 
-  if (!publication_type) {
-
-    errors.publication_type =
-      'Publication type is required';
-
-  } else if (
-    !validPublicationTypes.includes(
-      publication_type
-    )
+  if (
+    publication_type &&
+    !validPublicationTypes.includes(publication_type)
   ) {
-
     errors.publication_type =
       'Invalid publication type';
-
   }
 
 
@@ -308,14 +289,15 @@ const validateCreatePublication = (
   // ==========================================================
 
   if (
-    !title ||
-    typeof title !== 'string' ||
-    !title.trim()
+    title !== undefined &&
+    (
+      !title ||
+      typeof title !== 'string' ||
+      !title.trim()
+    )
   ) {
-
     errors.title =
-      'Title is required';
-
+      'Title cannot be empty';
   }
 
 
@@ -330,14 +312,10 @@ const validateCreatePublication = (
   ) {
 
     if (
-      !mongoose.Types.ObjectId.isValid(
-        faculty
-      )
+      !mongoose.Types.ObjectId.isValid(faculty)
     ) {
-
       errors.faculty =
         'Invalid faculty ID';
-
     }
 
   }
@@ -352,10 +330,8 @@ const validateCreatePublication = (
     authors !== null &&
     !Array.isArray(authors)
   ) {
-
     errors.authors =
       'Authors must be provided as an array';
-
   }
 
 
@@ -368,10 +344,8 @@ const validateCreatePublication = (
     keywords !== null &&
     !Array.isArray(keywords)
   ) {
-
     errors.keywords =
       'Keywords must be provided as an array';
-
   }
 
 
@@ -379,37 +353,42 @@ const validateCreatePublication = (
   // TYPE DETAILS
   // ==========================================================
 
-  if (
-    !type_details ||
-    typeof type_details !== 'object' ||
-    Array.isArray(type_details)
-  ) {
+  if (type_details !== undefined) {
 
-    if (!errors.type_details) {
+    if (
+      !publication_type ||
+      !validPublicationTypes.includes(
+        publication_type
+      )
+    ) {
 
-      errors.type_details =
-        'Type-specific details are required';
+      if (!errors.type_details) {
+        errors.type_details =
+          'Valid publication_type is required when updating type_details';
+      }
 
-    }
+    } else if (
+      typeof type_details !== 'object' ||
+      Array.isArray(type_details)
+    ) {
 
-  } else if (
-    publication_type &&
-    validPublicationTypes.includes(
-      publication_type
-    )
-  ) {
+      if (!errors.type_details) {
+        errors.type_details =
+          'Type-specific details must be an object';
+      }
 
-    const typeErrors =
-      validateTypeDetails(
-        publication_type,
-        type_details
-      );
+    } else {
 
+      const typeErrors =
+        validateTypeDetails(
+          publication_type,
+          type_details
+        );
 
-    if (typeErrors) {
-
-      errors.type_details =
-        typeErrors;
+      if (typeErrors) {
+        errors.type_details =
+          typeErrors;
+      }
 
     }
 
@@ -420,31 +399,23 @@ const validateCreatePublication = (
   // RETURN VALIDATION ERRORS
   // ==========================================================
 
-  if (
-    Object.keys(errors).length > 0
-  ) {
+  if (Object.keys(errors).length > 0) {
 
     return res.status(400).json({
-
       success: false,
-
       message: 'Validation failed',
-
       errors
-
     });
 
   }
 
 
   // ==========================================================
-  // CONTINUE TO CONTROLLER
+  // CONTINUE
   // ==========================================================
 
   next();
-
 };
-
 
 // ============================================================
 // GET PUBLICATION TYPES
