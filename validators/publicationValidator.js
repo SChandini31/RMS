@@ -47,20 +47,70 @@ const temporaryModelMap = {};
 
 
 // ============================================================
+// PARSE JSON FIELD FROM MULTIPART/FORM-DATA
+// ============================================================
+
+const parseJsonField = (value, fieldName) => {
+
+  // Field was not provided
+  if (value === undefined || value === null || value === '') {
+    return {
+      value: value,
+      error: null
+    };
+  }
+
+  // Already an object/array
+  if (typeof value !== 'string') {
+    return {
+      value: value,
+      error: null
+    };
+  }
+
+  try {
+
+    return {
+      value: JSON.parse(value),
+      error: null
+    };
+
+  } catch (error) {
+
+    return {
+      value: null,
+      error: `${fieldName} must contain valid JSON`
+    };
+
+  }
+};
+
+
+// ============================================================
 // VALIDATE TYPE-SPECIFIC DETAILS
 // ============================================================
 
-const validateTypeDetails = (publicationType, typeDetails) => {
+const validateTypeDetails = (
+  publicationType,
+  typeDetails
+) => {
 
   const schema = typeSchemaMap[publicationType];
 
   if (!schema) {
+
     return {
-      type_details: `Unsupported publication type: ${publicationType}`
+      type_details:
+        `Unsupported publication type: ${publicationType}`
     };
+
   }
 
-  // Create temporary validation model only once
+
+  // ----------------------------------------------------------
+  // CREATE TEMPORARY VALIDATION MODEL
+  // ----------------------------------------------------------
+
   if (!temporaryModelMap[publicationType]) {
 
     temporaryModelMap[publicationType] =
@@ -68,20 +118,39 @@ const validateTypeDetails = (publicationType, typeDetails) => {
         `PublicationValidation_${publicationType}`,
         schema
       );
+
   }
+
 
   const TemporaryModel =
     temporaryModelMap[publicationType];
 
+
+  // ----------------------------------------------------------
+  // CREATE TEMPORARY DOCUMENT
+  // ----------------------------------------------------------
+
   const document =
     new TemporaryModel(typeDetails || {});
+
+
+  // ----------------------------------------------------------
+  // RUN MONGOOSE VALIDATION
+  // ----------------------------------------------------------
 
   const error =
     document.validateSync();
 
+
+  // No validation errors
   if (!error) {
     return null;
   }
+
+
+  // ----------------------------------------------------------
+  // COLLECT VALIDATION ERRORS
+  // ----------------------------------------------------------
 
   const errors = {};
 
@@ -92,6 +161,7 @@ const validateTypeDetails = (publicationType, typeDetails) => {
 
   });
 
+
   return errors;
 };
 
@@ -100,22 +170,121 @@ const validateTypeDetails = (publicationType, typeDetails) => {
 // CREATE PUBLICATION VALIDATOR
 // ============================================================
 
-const validateCreatePublication = (req, res, next) => {
+const validateCreatePublication = (
+  req,
+  res,
+  next
+) => {
+
+  // ==========================================================
+  // PARSE AUTHORS
+  // ==========================================================
+
+  const authorsResult =
+    parseJsonField(
+      req.body.authors,
+      'authors'
+    );
+
+
+  // ==========================================================
+  // PARSE TYPE DETAILS
+  // ==========================================================
+
+  const typeDetailsResult =
+    parseJsonField(
+      req.body.type_details,
+      'type_details'
+    );
+
+
+  // ==========================================================
+  // PARSE KEYWORDS
+  // ==========================================================
+
+  const keywordsResult =
+    parseJsonField(
+      req.body.keywords,
+      'keywords'
+    );
+
+
+  // ==========================================================
+  // PUT PARSED VALUES BACK INTO req.body
+  // ==========================================================
+
+  if (!authorsResult.error) {
+
+    req.body.authors =
+      authorsResult.value;
+
+  }
+
+
+  if (!typeDetailsResult.error) {
+
+    req.body.type_details =
+      typeDetailsResult.value;
+
+  }
+
+
+  if (!keywordsResult.error) {
+
+    req.body.keywords =
+      keywordsResult.value;
+
+  }
+
+
+  // ==========================================================
+  // GET REQUEST DATA
+  // ==========================================================
 
   const {
     faculty,
     publication_type,
     title,
     authors,
-    type_details
+    type_details,
+    keywords
   } = req.body;
+
 
   const errors = {};
 
 
-  // ----------------------------------------------------------
+  // ==========================================================
+  // JSON PARSING ERRORS
+  // ==========================================================
+
+  if (authorsResult.error) {
+
+    errors.authors =
+      authorsResult.error;
+
+  }
+
+
+  if (typeDetailsResult.error) {
+
+    errors.type_details =
+      typeDetailsResult.error;
+
+  }
+
+
+  if (keywordsResult.error) {
+
+    errors.keywords =
+      keywordsResult.error;
+
+  }
+
+
+  // ==========================================================
   // PUBLICATION TYPE
-  // ----------------------------------------------------------
+  // ==========================================================
 
   if (!publication_type) {
 
@@ -123,7 +292,9 @@ const validateCreatePublication = (req, res, next) => {
       'Publication type is required';
 
   } else if (
-    !validPublicationTypes.includes(publication_type)
+    !validPublicationTypes.includes(
+      publication_type
+    )
   ) {
 
     errors.publication_type =
@@ -132,11 +303,15 @@ const validateCreatePublication = (req, res, next) => {
   }
 
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // TITLE
-  // ----------------------------------------------------------
+  // ==========================================================
 
-  if (!title || !title.trim()) {
+  if (
+    !title ||
+    typeof title !== 'string' ||
+    !title.trim()
+  ) {
 
     errors.title =
       'Title is required';
@@ -144,14 +319,20 @@ const validateCreatePublication = (req, res, next) => {
   }
 
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // FACULTY
-  // ----------------------------------------------------------
+  // ==========================================================
 
-  if (faculty !== undefined && faculty !== null) {
+  if (
+    faculty !== undefined &&
+    faculty !== null &&
+    faculty !== ''
+  ) {
 
     if (
-      !mongoose.Types.ObjectId.isValid(faculty)
+      !mongoose.Types.ObjectId.isValid(
+        faculty
+      )
     ) {
 
       errors.faculty =
@@ -162,12 +343,13 @@ const validateCreatePublication = (req, res, next) => {
   }
 
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // AUTHORS
-  // ----------------------------------------------------------
+  // ==========================================================
 
   if (
     authors !== undefined &&
+    authors !== null &&
     !Array.isArray(authors)
   ) {
 
@@ -177,9 +359,25 @@ const validateCreatePublication = (req, res, next) => {
   }
 
 
-  // ----------------------------------------------------------
+  // ==========================================================
+  // KEYWORDS
+  // ==========================================================
+
+  if (
+    keywords !== undefined &&
+    keywords !== null &&
+    !Array.isArray(keywords)
+  ) {
+
+    errors.keywords =
+      'Keywords must be provided as an array';
+
+  }
+
+
+  // ==========================================================
   // TYPE DETAILS
-  // ----------------------------------------------------------
+  // ==========================================================
 
   if (
     !type_details ||
@@ -187,12 +385,18 @@ const validateCreatePublication = (req, res, next) => {
     Array.isArray(type_details)
   ) {
 
-    errors.type_details =
-      'Type-specific details are required';
+    if (!errors.type_details) {
+
+      errors.type_details =
+        'Type-specific details are required';
+
+    }
 
   } else if (
     publication_type &&
-    validPublicationTypes.includes(publication_type)
+    validPublicationTypes.includes(
+      publication_type
+    )
   ) {
 
     const typeErrors =
@@ -200,6 +404,7 @@ const validateCreatePublication = (req, res, next) => {
         publication_type,
         type_details
       );
+
 
     if (typeErrors) {
 
@@ -211,153 +416,33 @@ const validateCreatePublication = (req, res, next) => {
   }
 
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // RETURN VALIDATION ERRORS
-  // ----------------------------------------------------------
+  // ==========================================================
 
-  if (Object.keys(errors).length > 0) {
+  if (
+    Object.keys(errors).length > 0
+  ) {
 
     return res.status(400).json({
+
       success: false,
+
       message: 'Validation failed',
+
       errors
+
     });
 
   }
 
 
-  next();
-};
-
-
-// ============================================================
-// UPDATE PUBLICATION VALIDATOR
-// ============================================================
-
-const validateUpdatePublication = (req, res, next) => {
-
-  const {
-    faculty,
-    publication_type,
-    title,
-    authors,
-    type_details
-  } = req.body;
-
-  const errors = {};
-
-
-  // ----------------------------------------------------------
-  // PUBLICATION TYPE
-  // ----------------------------------------------------------
-
-  if (
-    publication_type &&
-    !validPublicationTypes.includes(publication_type)
-  ) {
-
-    errors.publication_type =
-      'Invalid publication type';
-
-  }
-
-
-  // ----------------------------------------------------------
-  // TITLE
-  // ----------------------------------------------------------
-
-  if (
-    title !== undefined &&
-    (!title || !title.trim())
-  ) {
-
-    errors.title =
-      'Title cannot be empty';
-
-  }
-
-
-  // ----------------------------------------------------------
-  // FACULTY
-  // ----------------------------------------------------------
-
-  if (
-    faculty !== undefined &&
-    faculty !== null &&
-    !mongoose.Types.ObjectId.isValid(faculty)
-  ) {
-
-    errors.faculty =
-      'Invalid faculty ID';
-
-  }
-
-
-  // ----------------------------------------------------------
-  // AUTHORS
-  // ----------------------------------------------------------
-
-  if (
-    authors !== undefined &&
-    !Array.isArray(authors)
-  ) {
-
-    errors.authors =
-      'Authors must be provided as an array';
-
-  }
-
-
-  // ----------------------------------------------------------
-  // TYPE DETAILS
-  // ----------------------------------------------------------
-
-  if (type_details !== undefined) {
-
-    if (
-      !publication_type ||
-      !validPublicationTypes.includes(publication_type)
-    ) {
-
-      errors.type_details =
-        'Valid publication_type is required when updating type_details';
-
-    } else {
-
-      const typeErrors =
-        validateTypeDetails(
-          publication_type,
-          type_details
-        );
-
-      if (typeErrors) {
-
-        errors.type_details =
-          typeErrors;
-
-      }
-
-    }
-
-  }
-
-
-  // ----------------------------------------------------------
-  // RETURN ERRORS
-  // ----------------------------------------------------------
-
-  if (Object.keys(errors).length > 0) {
-
-    return res.status(400).json({
-      success: false,
-      message: 'Validation failed',
-      errors
-    });
-
-  }
-
+  // ==========================================================
+  // CONTINUE TO CONTROLLER
+  // ==========================================================
 
   next();
+
 };
 
 
@@ -365,11 +450,17 @@ const validateUpdatePublication = (req, res, next) => {
 // GET PUBLICATION TYPES
 // ============================================================
 
-const getPublicationTypes = (req, res) => {
+const getPublicationTypes = (
+  req,
+  res
+) => {
 
   return res.status(200).json({
+
     success: true,
+
     publicationTypes
+
   });
 
 };
@@ -380,9 +471,15 @@ const getPublicationTypes = (req, res) => {
 // ============================================================
 
 module.exports = {
+
   validateCreatePublication,
+
   validateUpdatePublication,
+
   validateTypeDetails,
+
   getPublicationTypes,
+
   typeSchemaMap
+
 };
