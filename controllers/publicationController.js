@@ -92,13 +92,20 @@ const createPublication = async (req, res) => {
     }
 
 
-    // --------------------------------------------------------
-    // UPLOADED BY
-    // --------------------------------------------------------
 
-    const uploadedBy = req.user
-      ? req.user._id
-      : null;
+
+    // --------------------------------------------------------
+// UPLOADED BY
+// --------------------------------------------------------
+
+const uploadedBy =
+  req.user?._id ||
+  req.user?.id ||
+  req.user?.userId ||
+  null;
+
+console.log("REQ.USER:", req.user);
+console.log("UPLOADED BY:", uploadedBy);
 
 
     // --------------------------------------------------------
