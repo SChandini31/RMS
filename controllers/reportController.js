@@ -5,7 +5,7 @@ const Publication = require("../models/publicationModel");
 // PUBLICATION TYPES
 // ============================================================
 
-const publicationTypes = [
+const PUBLICATION_TYPES = [
   "journal",
   "book",
   "book_chapter",
@@ -17,42 +17,27 @@ const publicationTypes = [
   "research_support",
 ];
 
+
 // ============================================================
 // SHEET NAMES
 // ============================================================
 
-const sheetNames = {
-  journal: "Journal Publication",
-  book: "Books Published",
-  book_chapter: "Books Chapter",
-  conference: "Conf. Publications",
+const SHEET_NAMES = {
+  journal: "Journals",
+  book: "Books",
+  book_chapter: "Book Chapters",
+  conference: "Conferences",
   patent: "Patents",
   research_project: "Research Projects",
-  consultancy: "Consultancy",
-  research_collaboration: "Research Collaboration",
+  consultancy: "Consultancies",
+  research_collaboration: "Research Collaborations",
   research_support: "Research Support",
 };
 
-// ============================================================
-// SHEET TITLES
-// ============================================================
-
-const sheetTitles = {
-  journal: "Journal Publications",
-  book: "Books Published",
-  book_chapter: "Books Chapter",
-  conference: "Conference Publications",
-  patent: "Patents",
-  research_project: "Research Projects",
-  consultancy: "Consultancy",
-  research_collaboration: "Research Collaboration",
-  research_support: "Research Support",
-};
 
 // ============================================================
 // COMMON EXCEL COLUMNS
-//
-// These fields are common to ALL publication types.
+// These are common Publication model fields
 // ============================================================
 
 const commonColumns = [
@@ -73,16 +58,16 @@ const commonColumns = [
     key: "faculty",
   },
   {
+    header: "Publication Type",
+    key: "publication_type",
+  },
+  {
     header: "Title",
     key: "title",
   },
   {
     header: "Authors",
     key: "authors",
-  },
-  {
-    header: "Publication Type",
-    key: "publication_type",
   },
   {
     header: "Abstract",
@@ -93,28 +78,20 @@ const commonColumns = [
     key: "keywords",
   },
   {
-    header: "Uploaded By",
-    key: "uploadedBy",
+    header: "File Name",
+    key: "fileName",
   },
   {
-    header: "Faculty Status",
-    key: "facultyStatus",
-  },
-  {
-    header: "Directorate Status",
-    key: "directorateStatus",
-  },
-  {
-    header: "Final Status",
-    key: "finalStatus",
-  },
-  {
-    header: "File",
-    key: "file",
+    header: "File URL",
+    key: "upload",
   },
   {
     header: "Additional Notes",
     key: "additional_notes",
+  },
+  {
+    header: "Uploaded By",
+    key: "uploadedBy",
   },
   {
     header: "Created At",
@@ -122,15 +99,15 @@ const commonColumns = [
   },
 ];
 
+
 // ============================================================
-// KNOWN TYPE-SPECIFIC COLUMNS
-//
-// These are ordered first.
-// Any additional fields found inside type_details will
-// automatically be added after these columns.
+// TYPE-SPECIFIC EXCEL COLUMNS
+// IMPORTANT:
+// These MUST MATCH the schemas you provided
 // ============================================================
 
 const typeColumns = {
+
   // ==========================================================
   // JOURNAL
   // ==========================================================
@@ -141,8 +118,20 @@ const typeColumns = {
       key: "journal_name",
     },
     {
+      header: "Publication Date",
+      key: "publication_date",
+    },
+    {
+      header: "Scope",
+      key: "scope",
+    },
+    {
       header: "ISSN",
       key: "issn",
+    },
+    {
+      header: "Impact Factor",
+      key: "impact_factor",
     },
     {
       header: "Volume",
@@ -153,22 +142,31 @@ const typeColumns = {
       key: "issue",
     },
     {
-      header: "Publication Date",
-      key: "publication_date",
+      header: "Starting Page",
+      key: "starting_page",
     },
     {
-      header: "Scope",
-      key: "scope",
+      header: "Ending Page",
+      key: "ending_page",
     },
     {
       header: "Indexed In",
       key: "indexed_in",
     },
     {
+      header: "Quartile",
+      key: "quartile",
+    },
+    {
+      header: "Citation Count",
+      key: "citation_count",
+    },
+    {
       header: "DOI / Link",
       key: "doi_or_link",
     },
   ],
+
 
   // ==========================================================
   // BOOK
@@ -204,6 +202,7 @@ const typeColumns = {
       key: "isbn",
     },
   ],
+
 
   // ==========================================================
   // BOOK CHAPTER
@@ -264,6 +263,7 @@ const typeColumns = {
     },
   ],
 
+
   // ==========================================================
   // CONFERENCE
   // ==========================================================
@@ -323,616 +323,727 @@ const typeColumns = {
     },
   ],
 
+
   // ==========================================================
   // PATENT
   // ==========================================================
 
-  patent: [],
+  patent: [
+    {
+      header: "Application Date",
+      key: "application_date",
+    },
+    {
+      header: "Application Number",
+      key: "application_number",
+    },
+    {
+      header: "Patent Type",
+      key: "patent_type",
+    },
+    {
+      header: "Patent Status",
+      key: "patent_status",
+    },
+    {
+      header: "Publication Date",
+      key: "publication_date",
+    },
+    {
+      header: "Granted Date",
+      key: "granted_date",
+    },
+    {
+      header: "Commercialized",
+      key: "is_commercialized",
+    },
+    {
+      header: "Commercialization Details",
+      key: "commercialization_details",
+    },
+    {
+      header: "Patent URL",
+      key: "patent_url",
+    },
+    {
+      header: "Technology Transfer Status",
+      key: "technology_transfer_status",
+    },
+    {
+      header: "Licensing Status",
+      key: "licensing_status",
+    },
+    {
+      header: "Revenue Generated",
+      key: "revenue_generated",
+    },
+    {
+      header: "Industrial Adoption",
+      key: "industrial_adoption",
+    },
+  ],
+
 
   // ==========================================================
   // RESEARCH PROJECT
   // ==========================================================
 
-  research_project: [],
+  research_project: [
+    {
+      header: "Application Date",
+      key: "application_date",
+    },
+    {
+      header: "Project Value",
+      key: "project_value",
+    },
+    {
+      header: "Funding Agency",
+      key: "funding_agency",
+    },
+    {
+      header: "Scheme Name",
+      key: "scheme_name",
+    },
+    {
+      header: "Sanctioned Amount",
+      key: "sanctioned_amount",
+    },
+    {
+      header: "Sanction Date",
+      key: "sanction_date",
+    },
+    {
+      header: "Duration",
+      key: "duration",
+    },
+    {
+      header: "Status",
+      key: "status",
+    },
+    {
+      header: "Outcome",
+      key: "outcome",
+    },
+    {
+      header: "Student Involvement",
+      key: "student_involvement",
+    },
+    {
+      header: "Societal / Industrial Impact",
+      key: "societal_industrial_impact",
+    },
+  ],
+
 
   // ==========================================================
   // CONSULTANCY
   // ==========================================================
 
-  consultancy: [],
+  consultancy: [
+    {
+      header: "Application Date",
+      key: "application_date",
+    },
+    {
+      header: "Project Value",
+      key: "project_value",
+    },
+    {
+      header: "Client Name",
+      key: "client_name",
+    },
+    {
+      header: "Consultant Assignment Type",
+      key: "consultant_assignment_type",
+    },
+    {
+      header: "Sanctioned Amount",
+      key: "sanctioned_amount",
+    },
+    {
+      header: "Sanction Date",
+      key: "sanction_date",
+    },
+    {
+      header: "Duration",
+      key: "duration",
+    },
+    {
+      header: "Status",
+      key: "status",
+    },
+  ],
+
 
   // ==========================================================
   // RESEARCH COLLABORATION
   // ==========================================================
 
-  research_collaboration: [],
+  research_collaboration: [
+    {
+      header: "Collaborator Name",
+      key: "collaborator_name",
+    },
+    {
+      header: "Collaborator Organization",
+      key: "collaborator_organization",
+    },
+    {
+      header: "Collaborator Country",
+      key: "collaborator_country",
+    },
+    {
+      header: "PI Name",
+      key: "pi_name",
+    },
+    {
+      header: "PI Designation",
+      key: "pi_designation",
+    },
+    {
+      header: "Nature of Collaboration",
+      key: "nature_of_collaboration",
+    },
+    {
+      header: "Collaboration Type",
+      key: "collaboration_type",
+    },
+    {
+      header: "Research Area / Project Title",
+      key: "research_area_project_title",
+    },
+    {
+      header: "Collaboration Status",
+      key: "collaboration_status",
+    },
+    {
+      header: "Collaboration Proposed Date",
+      key: "collaboration_proposed_date",
+    },
+    {
+      header: "Funding",
+      key: "funding",
+    },
+    {
+      header: "Collaboration Start Date",
+      key: "collaboration_start_date",
+    },
+    {
+      header: "Collaboration End Date",
+      key: "collaboration_end_date",
+    },
+    {
+      header: "Supporting Document Available",
+      key: "supporting_document_available",
+    },
+    {
+      header: "Status",
+      key: "status",
+    },
+    {
+      header: "Collaboration Outcomes",
+      key: "collaboration_outcomes",
+    },
+    {
+      header: "Other Outcome Details",
+      key: "other_outcome_details",
+    },
+  ],
+
 
   // ==========================================================
   // RESEARCH SUPPORT
   // ==========================================================
 
-  research_support: [],
+  research_support: [
+    {
+      header: "Support Type",
+      key: "support_type",
+    },
+    {
+      header: "Support Provided By",
+      key: "support_provided_by",
+    },
+    {
+      header: "Year",
+      key: "year",
+    },
+    {
+      header: "Outcome / Impact",
+      key: "outcome_impact",
+    },
+  ],
 };
 
-// ============================================================
-// FORMAT HEADER
-//
-// Example:
-// publication_date
-//        ↓
-// Publication Date
-// ============================================================
-
-const formatHeader = (key) => {
-  return key
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (char) => char.toUpperCase());
-};
 
 // ============================================================
 // FORMAT VALUE FOR EXCEL
 // ============================================================
 
-const formatValue = (value) => {
+const formatExcelValue = (value) => {
+
   if (value === null || value === undefined) {
     return "";
   }
 
-  // IMPORTANT:
-  // Date must be checked BEFORE generic object handling.
+  if (Array.isArray(value)) {
+    return value.join(", ");
+  }
+
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
 
   if (value instanceof Date) {
     return value.toISOString().split("T")[0];
   }
 
-  // MongoDB / Mongoose date-like values
-
-  if (
-    typeof value === "object" &&
-    value !== null &&
-    typeof value.toISOString === "function"
-  ) {
-    try {
-      return value.toISOString().split("T")[0];
-    } catch (error) {
-      // Continue with normal object formatting
-    }
-  }
-
-  // ==========================================================
-  // ARRAY
-  // ==========================================================
-
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => {
-        if (
-          typeof item === "object" &&
-          item !== null
-        ) {
-          return Object.entries(item)
-            .map(
-              ([key, val]) =>
-                `${formatHeader(key)}: ${formatValue(val)}`
-            )
-            .join(", ");
-        }
-
-        return String(item);
-      })
-      .join(" | ");
-  }
-
-  // ==========================================================
-  // OBJECT
-  // ==========================================================
-
-  if (
-    typeof value === "object" &&
-    value !== null
-  ) {
-    // Populated Mongoose document
-    if (value.name) {
-      return value.name;
-    }
-
-    // MongoDB ObjectId
-    if (
-      value._bsontype === "ObjectId" ||
-      value._bsontype === "ObjectID"
-    ) {
-      return value.toString();
-    }
-
-    return Object.entries(value)
-      .filter(([key]) => key !== "_id")
-      .map(
-        ([key, val]) =>
-          `${formatHeader(key)}: ${formatValue(val)}`
-      )
-      .join(", ");
-  }
-
-  return String(value);
+  return value;
 };
 
+
 // ============================================================
-// GET COMMON VALUE
+// FORMAT AUTHORS
 // ============================================================
 
-const getCommonValue = (publication, key) => {
-  switch (key) {
-    case "faculty":
-      return (
-        publication.faculty?.name ||
-        publication.faculty ||
-        ""
-      );
+const formatAuthors = (authors) => {
 
-    case "authors":
-      return publication.authors || [];
-
-    case "keywords":
-      return publication.keywords || [];
-
-    case "uploadedBy":
-      return (
-        publication.uploadedBy?.name ||
-        publication.uploadedBy ||
-        ""
-      );
-
-    case "facultyStatus":
-      return (
-        publication.facultyStatus ||
-        publication.faculty_status ||
-        ""
-      );
-
-    case "directorateStatus":
-      return (
-        publication.directorateStatus ||
-        publication.directorate_status ||
-        ""
-      );
-
-    case "finalStatus":
-      return (
-        publication.finalStatus ||
-        publication.final_status ||
-        ""
-      );
-
-    case "file":
-      return (
-        publication.upload ||
-        publication.file ||
-        ""
-      );
-
-    default:
-      return publication[key] ?? "";
+  if (!Array.isArray(authors)) {
+    return "";
   }
-};
 
-// ============================================================
-// GET DYNAMIC TYPE COLUMNS
-//
-// Any field inside type_details that is not already listed
-// in typeColumns will automatically become an Excel column.
-//
-// This is especially important for:
-//
-// patent
-// research_project
-// consultancy
-// research_collaboration
-// research_support
-//
-// ============================================================
+  return authors
+    .map((author) => {
 
-const getDynamicTypeColumns = (
-  publications,
-  existingKeys
-) => {
-  const discoveredKeys = new Set();
-
-  publications.forEach((publication) => {
-    const details =
-      publication.type_details || {};
-
-    Object.keys(details).forEach((key) => {
-      if (!existingKeys.has(key)) {
-        discoveredKeys.add(key);
+      if (!author) {
+        return "";
       }
-    });
+
+      const name = author.name || "";
+      const position = author.position || "";
+
+      if (name && position) {
+        return `${name} (${position})`;
+      }
+
+      return name || position;
+
+    })
+    .filter(Boolean)
+    .join(", ");
+};
+
+
+// ============================================================
+// CREATE COMMON ROW
+// ============================================================
+
+const createCommonRow = (publication) => {
+
+  return {
+    institution_organization:
+      publication.institution_organization || "",
+
+    school:
+      publication.school || "",
+
+    department:
+      publication.department || "",
+
+    faculty:
+      publication.faculty?.name ||
+      publication.faculty ||
+      "",
+
+    publication_type:
+      publication.publication_type || "",
+
+    title:
+      publication.title || "",
+
+    authors:
+      formatAuthors(publication.authors),
+
+    abstract:
+      publication.abstract || "",
+
+    keywords:
+      formatExcelValue(publication.keywords),
+
+    fileName:
+      publication.fileName || "",
+
+    upload:
+      publication.upload || "",
+
+    additional_notes:
+      publication.additional_notes || "",
+
+    uploadedBy:
+      publication.uploadedBy?.name ||
+      publication.uploadedBy?.email ||
+      publication.uploadedBy ||
+      "",
+
+    createdAt:
+      publication.createdAt
+        ? new Date(publication.createdAt)
+        : "",
+  };
+};
+
+
+// ============================================================
+// CREATE TYPE-SPECIFIC ROW
+// ============================================================
+
+const createTypeRow = (publication) => {
+
+  const details =
+    publication.type_details || {};
+
+  const row = {};
+
+
+  // ----------------------------------------------------------
+  // NORMAL FIELDS
+  // ----------------------------------------------------------
+
+  Object.keys(details).forEach((key) => {
+
+    if (
+      key !== "commercialization"
+    ) {
+
+      row[key] =
+        formatExcelValue(details[key]);
+
+    }
+
   });
 
-  return Array.from(discoveredKeys).map(
-    (key) => ({
-      header: formatHeader(key),
-      key,
-    })
-  );
+
+  // ----------------------------------------------------------
+  // PATENT COMMERCIALIZATION
+  // ----------------------------------------------------------
+
+  if (
+    publication.publication_type === "patent"
+  ) {
+
+    row.is_commercialized =
+      details.commercialization?.is_commercialized
+        ? "Yes"
+        : "No";
+
+    row.commercialization_details =
+      details.commercialization?.details || "";
+
+  }
+
+
+  return row;
 };
 
-// ============================================================
-// GET COLUMNS FOR PUBLICATION TYPE
-// ============================================================
-
-const getPublicationColumns = (
-  publicationType,
-  publications
-) => {
-  const predefinedTypeColumns =
-    typeColumns[publicationType] || [];
-
-  const existingKeys = new Set([
-    ...commonColumns.map(
-      (column) => column.key
-    ),
-
-    ...predefinedTypeColumns.map(
-      (column) => column.key
-    ),
-  ]);
-
-  const dynamicColumns =
-    getDynamicTypeColumns(
-      publications,
-      existingKeys
-    );
-
-  return [
-    ...commonColumns,
-    ...predefinedTypeColumns,
-    ...dynamicColumns,
-  ];
-};
 
 // ============================================================
-// CREATE PUBLICATION WORKSHEET
-//
-// FORMAT:
-//
-// Row 1 → merged title
-// Row 2 → column headers
-// Row 3+ → data
-//
-// This matches the workbook style shown in your screenshot.
+// BUILD WORKSHEET
 // ============================================================
 
-const createPublicationSheet = (
+const buildWorksheet = (
   workbook,
+  publications,
   publicationType,
-  publications
+  includeCommon = true
 ) => {
+
   const worksheet =
     workbook.addWorksheet(
-      sheetNames[publicationType] ||
+      SHEET_NAMES[publicationType] ||
       publicationType
     );
 
-  const columns =
-    getPublicationColumns(
-      publicationType,
-      publications
-    );
 
-  // ==========================================================
-  // TITLE ROW
-  // ==========================================================
+  const columns = [
+    ...(includeCommon ? commonColumns : []),
+    ...(typeColumns[publicationType] || []),
+  ];
 
-  const lastColumnNumber =
-    Math.max(columns.length, 1);
-
-  worksheet.mergeCells(
-    1,
-    1,
-    1,
-    lastColumnNumber
-  );
-
-  const titleCell =
-    worksheet.getCell(1, 1);
-
-  titleCell.value =
-    sheetTitles[publicationType] ||
-    formatHeader(publicationType);
-
-  titleCell.font = {
-    bold: true,
-    size: 16,
-  };
-
-  titleCell.alignment = {
-    vertical: "middle",
-    horizontal: "center",
-  };
-
-  titleCell.fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: {
-      argb: "FFFFFF00",
-    },
-  };
-
-  titleCell.border = {
-    top: {
-      style: "thin",
-    },
-    left: {
-      style: "thin",
-    },
-    bottom: {
-      style: "thin",
-    },
-    right: {
-      style: "thin",
-    },
-  };
-
-  worksheet.getRow(1).height = 32;
-
-  // ==========================================================
-  // COLUMN DEFINITIONS
-  // ==========================================================
 
   worksheet.columns = columns.map(
     (column) => ({
       header: column.header,
       key: column.key,
-      width: Math.min(
-        Math.max(
-          column.header.length + 5,
-          20
-        ),
-        35
+      width: Math.max(
+        15,
+        Math.min(
+          35,
+          column.header.length + 5
+        )
       ),
     })
   );
 
-  // ==========================================================
-  // HEADER ROW
-  //
-  // Since row 1 is already used for the title,
-  // put headers in row 2.
-  // ==========================================================
-
-  const headerRow =
-    worksheet.getRow(2);
-
-  columns.forEach(
-    (column, index) => {
-      const cell =
-        headerRow.getCell(index + 1);
-
-      cell.value = column.header;
-
-      cell.font = {
-        bold: true,
-        size: 12,
-      };
-
-      cell.alignment = {
-        vertical: "middle",
-        horizontal: "center",
-        wrapText: true,
-      };
-
-      cell.fill = {
-        type: "pattern",
-        pattern: "solid",
-        fgColor: {
-          argb: "D9E2F3",
-        },
-      };
-
-      cell.border = {
-        top: {
-          style: "thin",
-        },
-        left: {
-          style: "thin",
-        },
-        bottom: {
-          style: "thin",
-        },
-        right: {
-          style: "thin",
-        },
-      };
-    }
-  );
-
-  headerRow.height = 65;
-
-  // ==========================================================
-  // ADD DATA
-  // ==========================================================
 
   publications.forEach(
     (publication) => {
-      const row = {};
 
-      // ------------------------------------------------------
-      // COMMON FIELDS
-      // ------------------------------------------------------
+      const commonRow =
+        createCommonRow(publication);
 
-      commonColumns.forEach(
-        (column) => {
-          row[column.key] =
-            formatValue(
-              getCommonValue(
-                publication,
-                column.key
-              )
-            );
-        }
-      );
+      const typeRow =
+        createTypeRow(publication);
 
-      // ------------------------------------------------------
-      // TYPE DETAILS
-      // ------------------------------------------------------
+      worksheet.addRow({
+        ...commonRow,
+        ...typeRow,
+      });
 
-      const details =
-        publication.type_details || {};
-
-      const typeSpecificColumns =
-        columns.filter(
-          (column) =>
-            !commonColumns.some(
-              (commonColumn) =>
-                commonColumn.key ===
-                column.key
-            )
-        );
-
-      typeSpecificColumns.forEach(
-        (column) => {
-          row[column.key] =
-            formatValue(
-              details[column.key]
-            );
-        }
-      );
-
-      worksheet.addRow(row);
     }
   );
 
-  // ==========================================================
-  // DATA ROW STYLE
-  // ==========================================================
 
-  worksheet.eachRow(
-    (row, rowNumber) => {
-      if (rowNumber <= 2) {
-        return;
-      }
+  // ----------------------------------------------------------
+  // HEADER STYLE
+  // ----------------------------------------------------------
 
-      row.eachCell(
-        (cell) => {
-          cell.alignment = {
-            vertical: "top",
-            horizontal: "left",
-            wrapText: true,
-          };
+  worksheet.getRow(1).font = {
+    bold: true,
+  };
 
-          cell.border = {
-            top: {
-              style: "thin",
-            },
-            left: {
-              style: "thin",
-            },
-            bottom: {
-              style: "thin",
-            },
-            right: {
-              style: "thin",
-            },
-          };
-        }
-      );
-    }
-  );
+  worksheet.getRow(1).alignment = {
+    vertical: "middle",
+    horizontal: "center",
+  };
 
-  // ==========================================================
-  // FREEZE TITLE + HEADER
-  // ==========================================================
+
+  // ----------------------------------------------------------
+  // FILTER
+  // ----------------------------------------------------------
+
+  worksheet.autoFilter = {
+    from: "A1",
+    to: `${String.fromCharCode(
+      64 + Math.min(columns.length, 26)
+    )}1`,
+  };
+
+
+  // ----------------------------------------------------------
+  // FREEZE HEADER
+  // ----------------------------------------------------------
 
   worksheet.views = [
     {
       state: "frozen",
-      ySplit: 2,
+      ySplit: 1,
     },
   ];
-
-  // ==========================================================
-  // AUTO FILTER
-  // ==========================================================
-
-  if (columns.length > 0) {
-    worksheet.autoFilter = {
-      from: {
-        row: 2,
-        column: 1,
-      },
-
-      to: {
-        row: Math.max(
-          publications.length + 2,
-          2
-        ),
-        column: columns.length,
-      },
-    };
-  }
-
-  // ==========================================================
-  // PAGE SETUP
-  // ==========================================================
-
-  worksheet.pageSetup = {
-    orientation: "landscape",
-    fitToPage: true,
-    fitToWidth: 1,
-    fitToHeight: 0,
-  };
-
-  worksheet.pageSetup.margins = {
-    left: 0.25,
-    right: 0.25,
-    top: 0.5,
-    bottom: 0.5,
-    header: 0.2,
-    footer: 0.2,
-  };
 
   return worksheet;
 };
 
+
 // ============================================================
-// FETCH PUBLICATIONS
+// DATE FILTER
 // ============================================================
 
-const fetchPublications = async (
-  filter = {}
-) => {
-  return await Publication.find(filter)
-    .populate(
-      "faculty",
-      "name email role"
-    )
-    .populate(
-      "uploadedBy",
-      "name email role"
-    )
-    .populate(
-      "facultyApprovedBy",
-      "name email"
-    )
-    .populate(
-      "directorateApprovedBy",
-      "name email"
-    )
-    .sort({
-      createdAt: -1,
-    })
-    .lean();
+const buildDateFilter = (from, to) => {
+
+  const filter = {};
+
+  if (from) {
+
+    const fromDate =
+      new Date(`${from}T00:00:00.000Z`);
+
+    if (!Number.isNaN(fromDate.getTime())) {
+      filter.createdAt = {
+        $gte: fromDate,
+      };
+    }
+
+  }
+
+
+  if (to) {
+
+    const toDate =
+      new Date(`${to}T23:59:59.999Z`);
+
+    if (!Number.isNaN(toDate.getTime())) {
+
+      if (!filter.createdAt) {
+        filter.createdAt = {};
+      }
+
+      filter.createdAt.$lte = toDate;
+
+    }
+
+  }
+
+  return filter;
 };
+
+
+// ============================================================
+// GET PUBLICATION METRICS
+//
+// GET /api/reports/publications?from=YYYY-MM-DD&to=YYYY-MM-DD
+//
+// Returns:
+// {
+//   success: true,
+//   data: [
+//      { label: "Journal", value: 5 },
+//      { label: "Book", value: 3 },
+//      ...
+//   ]
+// }
+//
+// ============================================================
+
+const getPublicationMetrics = async (req, res) => {
+
+  try {
+
+    const {
+      from,
+      to,
+    } = req.query;
+
+
+    // --------------------------------------------------------
+    // VALIDATE DATES
+    // --------------------------------------------------------
+
+    if (!from || !to) {
+
+      return res.status(400).json({
+        success: false,
+        message: "From date and To date are required",
+      });
+
+    }
+
+
+    if (from > to) {
+
+      return res.status(400).json({
+        success: false,
+        message: "From date cannot be greater than To date",
+      });
+
+    }
+
+
+    // --------------------------------------------------------
+    // DATE FILTER
+    // --------------------------------------------------------
+
+    const dateFilter =
+      buildDateFilter(from, to);
+
+
+    // --------------------------------------------------------
+    // AGGREGATE PUBLICATIONS
+    // --------------------------------------------------------
+
+    const metrics =
+      await Publication.aggregate([
+        {
+          $match: dateFilter,
+        },
+
+        {
+          $group: {
+            _id: "$publication_type",
+            value: {
+              $sum: 1,
+            },
+          },
+        },
+      ]);
+
+
+    // --------------------------------------------------------
+    // KEEP ALL PUBLICATION TYPES
+    // Even if count = 0
+    // --------------------------------------------------------
+
+    const metricMap = {};
+
+    metrics.forEach((item) => {
+
+      metricMap[item._id] =
+        item.value;
+
+    });
+
+
+    const data =
+      PUBLICATION_TYPES.map(
+        (type) => ({
+
+          label:
+            type
+              .split("_")
+              .map(
+                word =>
+                  word.charAt(0).toUpperCase() +
+                  word.slice(1)
+              )
+              .join(" "),
+
+          value:
+            metricMap[type] || 0,
+
+          publication_type:
+            type,
+
+        })
+      );
+
+
+    return res.status(200).json({
+      success: true,
+      from,
+      to,
+      total:
+        data.reduce(
+          (sum, item) =>
+            sum + item.value,
+          0
+        ),
+      data,
+    });
+
+
+  } catch (error) {
+
+    console.error(
+      "GET PUBLICATION METRICS ERROR:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch publication metrics",
+      error: error.message,
+    });
+
+  }
+
+};
+
 
 // ============================================================
 // EXPORT PUBLICATIONS TO EXCEL
 //
-// GET:
-//
-// /api/reports/publications/excel?type=journal
-//
-// /api/reports/publications/excel?type=all
+// GET
+// /api/reports/publications/excel?type=all&from=2026-08-01&to=2026-08-25
 //
 // ============================================================
 
@@ -940,150 +1051,174 @@ const exportPublicationsToExcel = async (
   req,
   res
 ) => {
+
   try {
-    const type =
-      req.query.type || "all";
 
-    console.log(
-      "EXCEL EXPORT TYPE:",
-      type
-    );
+    const {
+      type = "all",
+      from,
+      to,
+    } = req.query;
 
-    // ========================================================
-    // VALID TYPES
-    // ========================================================
 
-    const validTypes = [
-      "all",
-      ...publicationTypes,
-    ];
+    // --------------------------------------------------------
+    // VALIDATE TYPE
+    // --------------------------------------------------------
 
-    if (!validTypes.includes(type)) {
+    if (
+      type !== "all" &&
+      !PUBLICATION_TYPES.includes(type)
+    ) {
+
+      return res.status(400).json({
+        success: false,
+        message: "Invalid publication type",
+      });
+
+    }
+
+
+    // --------------------------------------------------------
+    // VALIDATE DATE RANGE
+    // --------------------------------------------------------
+
+    if (from && to && from > to) {
+
       return res.status(400).json({
         success: false,
         message:
-          "Invalid publication type",
-        validTypes,
+          "From date cannot be greater than To date",
       });
+
     }
 
-    // ========================================================
+
+    // --------------------------------------------------------
+    // BUILD FILTER
+    // --------------------------------------------------------
+
+    const query = {
+      ...buildDateFilter(from, to),
+    };
+
+
+    // --------------------------------------------------------
+    // TYPE FILTER
+    // --------------------------------------------------------
+
+    if (type !== "all") {
+
+      query.publication_type =
+        type;
+
+    }
+
+
+    // --------------------------------------------------------
+    // FETCH PUBLICATIONS
+    // --------------------------------------------------------
+
+    const publications =
+      await Publication.find(query)
+        .populate(
+          "faculty",
+          "name email role"
+        )
+        .populate(
+          "uploadedBy",
+          "name email role"
+        )
+        .sort({
+          createdAt: -1,
+        })
+        .lean();
+
+
+    // --------------------------------------------------------
+    // NO DATA
+    // --------------------------------------------------------
+
+    if (publications.length === 0) {
+
+      return res.status(404).json({
+        success: false,
+        message:
+          "No publications found for the selected date range",
+      });
+
+    }
+
+
+    // --------------------------------------------------------
     // CREATE WORKBOOK
-    // ========================================================
+    // --------------------------------------------------------
 
     const workbook =
       new ExcelJS.Workbook();
 
-    workbook.creator =
-      "Research Management System";
 
-    workbook.lastModifiedBy =
+    workbook.creator =
       "Research Management System";
 
     workbook.created =
       new Date();
 
-    workbook.modified =
-      new Date();
 
-    workbook.properties = {
-      title:
-        "Research Publications",
-      subject:
-        "Research Management System Publication Report",
-      company:
-        "Research Management System",
-    };
-
-    // ========================================================
+    // --------------------------------------------------------
     // ALL TYPES
-    //
-    // IMPORTANT:
-    //
-    // One workbook
-    // +
-    // exactly 9 worksheets
-    //
-    // Even if a particular type has zero records,
-    // its worksheet is still created.
-    // ========================================================
+    // --------------------------------------------------------
 
     if (type === "all") {
-      const publications =
-        await fetchPublications();
 
-      // ------------------------------------------------------
-      // GROUP PUBLICATIONS BY TYPE
-      // ------------------------------------------------------
-
-      const grouped = {};
-
-      publicationTypes.forEach(
+      PUBLICATION_TYPES.forEach(
         (publicationType) => {
-          grouped[publicationType] = [];
-        }
-      );
 
-      publications.forEach(
-        (publication) => {
-          const publicationType =
-            publication.publication_type;
+          const filtered =
+            publications.filter(
+              (publication) =>
+                publication.publication_type ===
+                publicationType
+            );
 
-          if (
-            grouped[
-              publicationType
-            ]
-          ) {
-            grouped[
-              publicationType
-            ].push(publication);
-          }
-        }
-      );
 
-      // ------------------------------------------------------
-      // CREATE ALL 9 SHEETS
-      // ------------------------------------------------------
-
-      publicationTypes.forEach(
-        (publicationType) => {
-          createPublicationSheet(
+          // Create sheet even when empty
+          buildWorksheet(
             workbook,
+            filtered,
             publicationType,
-            grouped[
-              publicationType
-            ]
+            true
           );
+
         }
       );
+
     }
 
-    // ========================================================
+    // --------------------------------------------------------
     // SINGLE TYPE
-    //
-    // Example:
-    //
-    // ?type=journal
-    //
-    // Creates ONE workbook with ONE worksheet.
-    // ========================================================
+    // --------------------------------------------------------
 
     else {
-      const publications =
-        await fetchPublications({
-          publication_type: type,
-        });
 
-      createPublicationSheet(
+      buildWorksheet(
         workbook,
+        publications,
         type,
-        publications
+        true
       );
+
     }
 
-    // ========================================================
+
+    // --------------------------------------------------------
     // RESPONSE HEADERS
-    // ========================================================
+    // --------------------------------------------------------
+
+    const fileName =
+      type === "all"
+        ? `publications-${from || "all"}-to-${to || "all"}.xlsx`
+        : `${type}-publications-${from || "all"}-to-${to || "all"}.xlsx`;
+
 
     res.setHeader(
       "Content-Type",
@@ -1092,39 +1227,54 @@ const exportPublicationsToExcel = async (
 
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="Research-Publications-${type}.xlsx"`
+      `attachment; filename="${fileName}"`
     );
 
-    // ========================================================
-    // SEND WORKBOOK
-    // ========================================================
+
+    // --------------------------------------------------------
+    // WRITE TO RESPONSE
+    // IMPORTANT:
+    // We are NOT saving the Excel file to disk.
+    //
+    // Therefore you won't get:
+    // EBUSY resource locked
+    //
+    // --------------------------------------------------------
 
     await workbook.xlsx.write(res);
 
     res.end();
+
+
   } catch (error) {
+
     console.error(
-      "EXCEL EXPORT ERROR:",
+      "EXPORT PUBLICATIONS EXCEL ERROR:",
       error
     );
 
     if (!res.headersSent) {
+
       return res.status(500).json({
         success: false,
         message:
-          "Failed to export publications",
-        error: error.message,
+          "Failed to export publications to Excel",
+        error:
+          error.message,
       });
+
     }
 
-    res.end();
   }
+
 };
 
+
 // ============================================================
-// EXPORT
+// EXPORT CONTROLLER
 // ============================================================
 
 module.exports = {
+  getPublicationMetrics,
   exportPublicationsToExcel,
 };

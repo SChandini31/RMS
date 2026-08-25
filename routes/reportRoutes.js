@@ -2,43 +2,41 @@ const express = require("express");
 
 const router = express.Router();
 
-
-// ============================================================
-// AUTHENTICATION MIDDLEWARE
-// ============================================================
-
-const authMiddleware = require("../middleware/authMiddleware");
-
-
-// ============================================================
-// REPORT CONTROLLER
-// ============================================================
+const authMiddleware =
+  require("../middleware/authMiddleware");
 
 const {
-  exportPublicationsToExcel
+  getPublicationMetrics,
+  exportPublicationsToExcel,
 } = require("../controllers/reportController");
 
 
 // ============================================================
-// PUBLICATION EXCEL EXPORT
+// PUBLICATION METRICS
 // ============================================================
-//
-// GET /api/reports/publications/excel?type=all
+
+// GET
+// /api/reports/publications?from=2026-08-01&to=2026-08-25
+
+router.get(
+  "/publications",
+  authMiddleware,
+  getPublicationMetrics
+);
+
+
+// ============================================================
+// PUBLICATION EXCEL
+// ============================================================
+
+// GET
+// /api/reports/publications/excel
 //
 // Examples:
 //
-// ?type=all
-// ?type=journal
-// ?type=book
-// ?type=book_chapter
-// ?type=conference
-// ?type=patent
-// ?type=research_project
-// ?type=consultancy
-// ?type=research_collaboration
-// ?type=research_support
+// /api/reports/publications/excel?type=all&from=2026-08-01&to=2026-08-25
 //
-// ============================================================
+// /api/reports/publications/excel?type=journal&from=2026-08-01&to=2026-08-25
 
 router.get(
   "/publications/excel",
@@ -46,9 +44,5 @@ router.get(
   exportPublicationsToExcel
 );
 
-
-// ============================================================
-// EXPORT ROUTER
-// ============================================================
 
 module.exports = router;
