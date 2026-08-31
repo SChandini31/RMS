@@ -121,31 +121,187 @@ router.post("/", authMiddleware, allowRoles("super_admin"), async (req, res) => 
 // READ ALL users
 // super_admin -> all users
 // admin -> only users from their own department
+// READ ALL users with pagination
+// super_admin -> all users
+// admin -> only users from their own department
+//
+// Pagination:
+// GET /api/users?page=1&limit=10
+
 router.get("/", authMiddleware, async (req, res) => {
   try {
-    if (req.user.role === "super_admin") {
-      const users = await User.find().select("-password").sort({ createdAt: -1 });
-      return res.json(users);
+
+    // ========================================================
+    // PAGINATION
+    // ========================================================
+
+    let page = parseInt(req.query.page, 10) || 1;
+    let limit = parseInt(req.query.limit, 10) || 10;
+
+    // Prevent invalid page
+    if (page < 1) {
+      page = 1;
     }
+
+    // Prevent invalid limit
+    if (limit < 1) {
+      limit = 10;
+    }
+
+    // Prevent excessively large requests
+    if (limit > 100) {
+      limit = 100;
+    }
+
+    const skip = (page - 1) * limit;
+
+
+    // ========================================================
+    // SUPER ADMIN
+    // Can see ALL users
+    // ========================================================
+
+    if (req.user.role === "super_admin") {
+
+      const totalUsers =
+        await User.countDocuments({});
+
+
+      const users =
+        await User.find({})
+          .select("-password")
+          .sort({
+            createdAt: -1,
+          })
+          .skip(skip)
+          .limit(limit);
+
+
+      const totalPages =
+        Math.ceil(totalUsers / limit);
+
+
+      return res.json({
+
+        success: true,
+
+        // Current page records
+        count: users.length,
+
+        // Users
+        users,
+
+        // Pagination metadata
+        pagination: {
+          currentPage: page,
+          pageSize: limit,
+          totalItems: totalUsers,
+          totalPages,
+
+          hasNextPage:
+            page < totalPages,
+
+          hasPreviousPage:
+            page > 1,
+        },
+
+      });
+    }
+
+
+    // ========================================================
+    // ADMIN
+    // Can see only users from their department
+    // ========================================================
 
     if (req.user.role === "admin") {
-      const currentAdmin = await User.findById(req.user.id);
+
+      const currentAdmin =
+        await User.findById(req.user.id);
+
 
       if (!currentAdmin) {
-        return res.status(404).json({ message: "Admin user not found" });
+
+        return res.status(404).json({
+          message: "Admin user not found",
+        });
+
       }
 
-      const users = await User.find({ department: currentAdmin.department })
-        .select("-password")
-        .sort({ createdAt: -1 });
 
-      return res.json(users);
+      // IMPORTANT:
+      // Same department restriction is preserved
+      const query = {
+        department: currentAdmin.department,
+      };
+
+
+      const totalUsers =
+        await User.countDocuments(query);
+
+
+      const users =
+        await User.find(query)
+          .select("-password")
+          .sort({
+            createdAt: -1,
+          })
+          .skip(skip)
+          .limit(limit);
+
+
+      const totalPages =
+        Math.ceil(totalUsers / limit);
+
+
+      return res.json({
+
+        success: true,
+
+        // Current page records
+        count: users.length,
+
+        // Users
+        users,
+
+        // Pagination metadata
+        pagination: {
+          currentPage: page,
+          pageSize: limit,
+          totalItems: totalUsers,
+          totalPages,
+
+          hasNextPage:
+            page < totalPages,
+
+          hasPreviousPage:
+            page > 1,
+        },
+
+      });
     }
 
-    return res.status(403).json({ message: "Access denied" });
+
+    // ========================================================
+    // OTHER ROLES
+    // ========================================================
+
+    return res.status(403).json({
+      message: "Access denied",
+    });
+
+
   } catch (err) {
-    console.error("GET USERS ERROR:", err);
-    res.status(500).json({ error: err.message });
+
+    console.error(
+      "GET USERS ERROR:",
+      err
+    );
+
+    res.status(500).json({
+      error: err.message,
+    });
+
   }
 });
 

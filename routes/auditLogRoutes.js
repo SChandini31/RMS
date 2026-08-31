@@ -95,7 +95,7 @@ router.get(
   }
 );
 
-// 3) GET all audit logs with filters
+// 3) GET all audit logs with filters + pagination
 router.get(
   '/',
   authMiddleware,
@@ -104,14 +104,93 @@ router.get(
     try {
       const filter = buildAuditFilter(req.query);
 
-      const logs = await AuditLog.find(filter)
-        .populate('performedBy', 'name email role department school')
-        .sort({ createdAt: -1 });
+      // ======================================================
+      // PAGINATION
+      // ======================================================
 
-      res.json(logs);
+      let page = parseInt(req.query.page, 10) || 1;
+      let limit = parseInt(req.query.limit, 10) || 10;
+
+      // Prevent invalid page
+      if (page < 1) {
+        page = 1;
+      }
+
+      // Prevent invalid limit
+      if (limit < 1) {
+        limit = 10;
+      }
+
+      // Prevent excessively large requests
+      if (limit > 100) {
+        limit = 100;
+      }
+
+      const skip = (page - 1) * limit;
+
+      // ======================================================
+      // TOTAL COUNT
+      // Uses the SAME filters
+      // ======================================================
+
+      const totalLogs = await AuditLog.countDocuments(filter);
+
+      // ======================================================
+      // FETCH PAGINATED AUDIT LOGS
+      // ======================================================
+
+      const logs = await AuditLog.find(filter)
+        .populate(
+          'performedBy',
+          'name email role department school'
+        )
+        .sort({
+          createdAt: -1,
+        })
+        .skip(skip)
+        .limit(limit);
+
+      // ======================================================
+      // PAGINATION INFORMATION
+      // ======================================================
+
+      const totalPages = Math.ceil(totalLogs / limit);
+
+      // ======================================================
+      // RESPONSE
+      // ======================================================
+
+      res.json({
+        success: true,
+
+        // Current page records
+        count: logs.length,
+
+        // Audit logs
+        logs,
+
+        // Pagination metadata
+        pagination: {
+          currentPage: page,
+          pageSize: limit,
+          totalItems: totalLogs,
+          totalPages,
+
+          hasNextPage:
+            page < totalPages,
+
+          hasPreviousPage:
+            page > 1,
+        },
+      });
+
     } catch (error) {
       console.error('AUDIT LOG ERROR:', error);
-      res.status(500).json({ error: error.message });
+
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
     }
   }
 );
