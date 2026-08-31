@@ -217,43 +217,170 @@ console.log("UPLOADED BY:", uploadedBy);
   }
 };
 
-
 // ============================================================
 // GET ALL PUBLICATIONS
 // GET /api/publications
+//
+// Pagination:
+// GET /api/publications?page=1&limit=10
+//
+// Role-based visibility is preserved.
 // ============================================================
 
 const getAllPublications = async (req, res) => {
   try {
 
-    const publications = await Publication.find()
-      .populate('faculty', 'name email role')
-      .populate('uploadedBy', 'name email role')
-      .populate('facultyApprovedBy', 'name email')
-      .populate('directorateApprovedBy', 'name email')
-      .populate('authors')
-      .sort({ createdAt: -1 });
+    // ========================================================
+    // PAGINATION
+    // ========================================================
 
+    let page = parseInt(req.query.page, 10) || 1;
+    let limit = parseInt(req.query.limit, 10) || 10;
+
+    // Prevent invalid values
+    if (page < 1) {
+      page = 1;
+    }
+
+    if (limit < 1) {
+      limit = 10;
+    }
+
+    // Prevent excessively large requests
+    if (limit > 100) {
+      limit = 100;
+    }
+
+    const skip = (page - 1) * limit;
+
+
+    // ========================================================
+    // ROLE-BASED FILTER
+    // IMPORTANT:
+    // Keep the existing visibility rules.
+    // ========================================================
+
+    const query = {};
+
+    // --------------------------------------------------------
+    // STUDENT
+    // Student can see only their own publications
+    // --------------------------------------------------------
+
+    if (req.user?.role === "student") {
+
+      query.uploadedBy = req.user._id;
+
+    }
+
+
+    // --------------------------------------------------------
+    // ADMIN
+    // Admin can see publications from their department
+    // --------------------------------------------------------
+
+    if (req.user?.role === "admin") {
+
+      query.department = req.user.department;
+
+    }
+
+
+    // ========================================================
+    // TOTAL COUNT
+    // Count only publications this user is allowed to see
+    // ========================================================
+
+    const totalPublications =
+      await Publication.countDocuments(query);
+
+
+    // ========================================================
+    // FETCH PAGINATED PUBLICATIONS
+    // ========================================================
+
+    const publications =
+      await Publication.find(query)
+        .populate(
+          "faculty",
+          "name email role"
+        )
+        .populate(
+          "uploadedBy",
+          "name email role"
+        )
+        .populate(
+          "facultyApprovedBy",
+          "name email"
+        )
+        .populate(
+          "directorateApprovedBy",
+          "name email"
+        )
+        .populate("authors")
+        .sort({
+          createdAt: -1,
+        })
+        .skip(skip)
+        .limit(limit);
+
+
+    // ========================================================
+    // PAGINATION INFORMATION
+    // ========================================================
+
+    const totalPages =
+      Math.ceil(totalPublications / limit);
+
+
+    // ========================================================
+    // RESPONSE
+    // ========================================================
 
     return res.status(200).json({
+
       success: true,
+
+      // Current page records
       count: publications.length,
-      publications
+
+      // Paginated data
+      publications,
+
+      // Pagination metadata
+      pagination: {
+        currentPage: page,
+        pageSize: limit,
+        totalItems: totalPublications,
+        totalPages,
+        hasNextPage:
+          page < totalPages,
+        hasPreviousPage:
+          page > 1,
+      },
+
     });
 
 
   } catch (error) {
 
     console.error(
-      'Get Publications Error:',
+      "Get Publications Error:",
       error
     );
 
     return res.status(500).json({
+
       success: false,
-      message: 'Failed to fetch publications',
-      error: error.message
+
+      message:
+        "Failed to fetch publications",
+
+      error:
+        error.message,
+
     });
+
   }
 };
 
