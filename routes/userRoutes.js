@@ -79,6 +79,7 @@ router.post("/", authMiddleware, allowRoles("super_admin"), async (req, res) => 
       department: department.trim().toUpperCase(),
       school: school.trim(),
       contact_number: contact_number,
+      organization_institution: organization_institution.trim(),
     });
 
     const safeUser = await User.findById(user._id).select("-password");
@@ -92,6 +93,7 @@ router.post("/", authMiddleware, allowRoles("super_admin"), async (req, res) => 
       role: req.user.role,
       department: currentUser?.department || "",
       school: currentUser?.school || "",
+      organization_institution: currentUser?.organization_institution || "",
       targetType: "user",
       targetId: user._id,
       details: `Created user ${user.email} with roles ${user.role.join(", ")} in ${user.department}`,
