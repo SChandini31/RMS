@@ -30,8 +30,10 @@ router.post("/", authMiddleware, allowRoles("super_admin"), async (req, res) => 
       department,
       school,
       contact_number,
+      organization_institution
     } = req.body;
 
+    // Required fields
     if (
       !name ||
       !email ||
@@ -39,14 +41,29 @@ router.post("/", authMiddleware, allowRoles("super_admin"), async (req, res) => 
       !role ||
       !department ||
       !school ||
-      !contact_number
+      !contact_number ||
+      !organization_institution
     ) {
-      return res.status(400).json({ message: "All fields are required" });
+      return res.status(400).json({
+        message: "All fields are required",
+      });
     }
 
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    // Role must be an array
+    if (!Array.isArray(role) || role.length === 0) {
+      return res.status(400).json({
+        message: "At least one role is required",
+      });
+    }
+
+    const existingUser = await User.findOne({
+      email: email.toLowerCase(),
+    });
+
     if (existingUser) {
-      return res.status(400).json({ message: "User already exists" });
+      return res.status(400).json({
+        message: "User already exists",
+      });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -55,16 +72,20 @@ router.post("/", authMiddleware, allowRoles("super_admin"), async (req, res) => 
       name: name.trim(),
       email: email.toLowerCase().trim(),
       password: hashedPassword,
-      role: role.trim(),
+
+      // MULTIPLE ROLES
+      role: role,
+
       department: department.trim().toUpperCase(),
       school: school.trim(),
-      contact_number: contact_number.trim(),
+      contact_number: contact_number,
     });
 
     const safeUser = await User.findById(user._id).select("-password");
 
     // AUDIT LOG
     const currentUser = await User.findById(req.user.id);
+
     await AuditLog.create({
       action: "create_user",
       performedBy: req.user.id,
@@ -73,7 +94,7 @@ router.post("/", authMiddleware, allowRoles("super_admin"), async (req, res) => 
       school: currentUser?.school || "",
       targetType: "user",
       targetId: user._id,
-      details: `Created user ${user.email} with role ${user.role} in ${user.department}`,
+      details: `Created user ${user.email} with roles ${user.role.join(", ")} in ${user.department}`,
     });
 
     // SEND EMAIL
@@ -87,24 +108,39 @@ router.post("/", authMiddleware, allowRoles("super_admin"), async (req, res) => 
           subject: "RMS Account Created",
           html: `
             <h2>Welcome to RMS</h2>
+
             <p>Hello ${user.name},</p>
+
             <p>Your account has been created.</p>
+
             <p><b>Email:</b> ${user.email}</p>
+
             <p><b>Password:</b> ${password}</p>
-            <p><b>Role:</b> ${user.role}</p>
+
+            <p><b>Roles:</b> ${user.role.join(", ")}</p>
+
             <p><b>Department:</b> ${user.department}</p>
+
             <p><b>School:</b> ${user.school}</p>
+
             <p><b>Contact Number:</b> ${user.contact_number}</p>
+
             <p>Please login and change your password.</p>
           `,
         }),
+
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Email timeout")), 5000)
+          setTimeout(
+            () => reject(new Error("Email timeout")),
+            5000
+          )
         ),
       ]);
     } catch (mailError) {
       console.error("EMAIL SEND ERROR:", mailError);
-      emailStatus = "User created, but email failed or timed out";
+
+      emailStatus =
+        "User created, but email failed or timed out";
     }
 
     res.status(201).json({
@@ -112,9 +148,13 @@ router.post("/", authMiddleware, allowRoles("super_admin"), async (req, res) => 
       emailStatus,
       data: safeUser,
     });
+
   } catch (err) {
     console.error("CREATE USER ERROR:", err);
-    res.status(500).json({ error: err.message });
+
+    res.status(500).json({
+      error: err.message,
+    });
   }
 });
 
