@@ -1226,11 +1226,12 @@ const exportPublicationsToExcel = async (
   res
 ) => {
   try {
-    const {
-      type = "all",
-      from,
-      to,
-    } = req.query;
+   const {
+  type = "all",
+  status = "all",
+  from,
+  to,
+} = req.query;
 
     // --------------------------------------------------------
     // VALIDATE TYPE
@@ -1247,6 +1248,20 @@ const exportPublicationsToExcel = async (
       });
     }
 
+    // --------------------------------------------------------
+    // VALIDATE STATUS
+    // --------------------------------------------------------
+
+      if (
+        status !== "all" &&
+       status !== "approved" &&
+      status !== "not_approved"
+       ) {
+     return res.status(400).json({
+       success: false,
+       message: "Invalid publication status",
+    });
+}
     // --------------------------------------------------------
     // VALIDATE FROM DATE
     // --------------------------------------------------------
@@ -1304,6 +1319,20 @@ const exportPublicationsToExcel = async (
     if (type !== "all") {
       query.publication_type = type;
     }
+
+    // --------------------------------------------------------
+    // FINAL STATUS FILTER
+    // --------------------------------------------------------
+
+      if (status === "approved") {
+         query.finalStatus = "approved";
+        }
+
+      if (status === "not_approved") {
+          query.finalStatus = {
+         $in: ["pending", "rejected"],
+        };
+      }   
 
     // --------------------------------------------------------
     // FETCH PUBLICATIONS
