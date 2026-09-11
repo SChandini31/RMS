@@ -1,5 +1,6 @@
 const ExcelJS = require("exceljs");
 const Publication = require("../models/publicationModel");
+const User = require("../models/userModel");
 
 // ============================================================
 // PUBLICATION TYPES
@@ -34,6 +35,39 @@ const SHEET_NAMES = {
 };
 
 // ============================================================
+// GET ACTIVE ROLE
+//
+// Supports the new multiple-role user system.
+//
+// Priority:
+// 1. activeRole from JWT
+// 2. first role from database
+//
+// ============================================================
+
+const getActiveRole = async (req) => {
+  const user = await User.findById(req.user.id).lean();
+
+  if (!user) {
+    return {
+      user: null,
+      activeRole: null,
+    };
+  }
+
+  const activeRole =
+    req.user.activeRole ||
+    (Array.isArray(user.role)
+      ? user.role[0]
+      : user.role);
+
+  return {
+    user,
+    activeRole,
+  };
+};
+
+// ============================================================
 // DISPLAY NAMES
 // ============================================================
 
@@ -51,9 +85,6 @@ const DISPLAY_NAMES = {
 
 // ============================================================
 // COMMON PUBLICATION FIELDS
-//
-// These fields come from publicationModel.js
-// and are included in EVERY publication type sheet.
 // ============================================================
 
 const commonColumns = [
@@ -114,15 +145,13 @@ const commonColumns = [
     key: "createdAt",
   },
   {
-  header: "Final Status",
-  key: "finalStatus",
-},
+    header: "Final Status",
+    key: "finalStatus",
+  },
 ];
 
 // ============================================================
 // TYPE-SPECIFIC FIELDS
-//
-// These MUST match the schemas provided.
 // ============================================================
 
 const typeColumns = {
@@ -591,29 +620,44 @@ const typeColumns = {
 // ============================================================
 
 const formatExcelValue = (value) => {
-  if (value === null || value === undefined) {
+  if (
+    value === null ||
+    value === undefined
+  ) {
     return "";
   }
 
   // Arrays
   if (Array.isArray(value)) {
     return value
-      .map((item) => formatExcelValue(item))
-      .filter((item) => item !== "")
+      .map((item) =>
+        formatExcelValue(item)
+      )
+      .filter(
+        (item) => item !== ""
+      )
       .join(", ");
   }
 
   // Date
   if (value instanceof Date) {
-    if (Number.isNaN(value.getTime())) {
+    if (
+      Number.isNaN(
+        value.getTime()
+      )
+    ) {
       return "";
     }
 
-    return value.toISOString().split("T")[0];
+    return value
+      .toISOString()
+      .split("T")[0];
   }
 
   // Object
-  if (typeof value === "object") {
+  if (
+    typeof value === "object"
+  ) {
     return JSON.stringify(value);
   }
 
@@ -622,16 +666,14 @@ const formatExcelValue = (value) => {
 
 // ============================================================
 // FORMAT AUTHORS
-//
-// authorSchema:
-// {
-//   name,
-//   position
-// }
 // ============================================================
 
-const formatAuthors = (authors) => {
-  if (!Array.isArray(authors)) {
+const formatAuthors = (
+  authors
+) => {
+  if (
+    !Array.isArray(authors)
+  ) {
     return "";
   }
 
@@ -641,14 +683,23 @@ const formatAuthors = (authors) => {
         return "";
       }
 
-      const name = author.name || "";
-      const position = author.position || "";
+      const name =
+        author.name || "";
 
-      if (name && position) {
+      const position =
+        author.position || "";
+
+      if (
+        name &&
+        position
+      ) {
         return `${name} (${position})`;
       }
 
-      return name || position;
+      return (
+        name ||
+        position
+      );
     })
     .filter(Boolean)
     .join(", ");
@@ -658,13 +709,22 @@ const formatAuthors = (authors) => {
 // FORMAT FACULTY
 // ============================================================
 
-const formatFaculty = (faculty) => {
+const formatFaculty = (
+  faculty
+) => {
   if (!faculty) {
     return "";
   }
 
-  if (typeof faculty === "object") {
-    return faculty.name || faculty.email || "";
+  if (
+    typeof faculty ===
+    "object"
+  ) {
+    return (
+      faculty.name ||
+      faculty.email ||
+      ""
+    );
   }
 
   return faculty;
@@ -674,12 +734,17 @@ const formatFaculty = (faculty) => {
 // FORMAT UPLOADED BY
 // ============================================================
 
-const formatUploadedBy = (uploadedBy) => {
+const formatUploadedBy = (
+  uploadedBy
+) => {
   if (!uploadedBy) {
     return "";
   }
 
-  if (typeof uploadedBy === "object") {
+  if (
+    typeof uploadedBy ===
+    "object"
+  ) {
     return (
       uploadedBy.name ||
       uploadedBy.email ||
@@ -694,137 +759,179 @@ const formatUploadedBy = (uploadedBy) => {
 // CREATE COMMON ROW
 // ============================================================
 
-const createCommonRow = (publication) => {
+const createCommonRow = (
+  publication
+) => {
   return {
     institution_organization:
-      publication.institution_organization || "",
+      publication
+        .institution_organization ||
+      "",
 
     school:
-      publication.school || "",
+      publication.school ||
+      "",
 
     department:
-      publication.department || "",
+      publication.department ||
+      "",
 
     faculty:
-      formatFaculty(publication.faculty),
+      formatFaculty(
+        publication.faculty
+      ),
 
     publication_type:
-      publication.publication_type || "",
+      publication
+        .publication_type ||
+      "",
 
     title:
-      publication.title || "",
+      publication.title ||
+      "",
 
     authors:
-      formatAuthors(publication.authors),
+      formatAuthors(
+        publication.authors
+      ),
 
     abstract:
-      publication.abstract || "",
+      publication.abstract ||
+      "",
 
     keywords:
-      formatExcelValue(publication.keywords),
+      formatExcelValue(
+        publication.keywords
+      ),
 
     fileName:
-      publication.fileName || "",
+      publication.fileName ||
+      "",
 
     upload:
-      publication.upload || "",
+      publication.upload ||
+      "",
 
     additional_notes:
-      publication.additional_notes || "",
+      publication
+        .additional_notes ||
+      "",
 
     uploadedBy:
-      formatUploadedBy(publication.uploadedBy),
+      formatUploadedBy(
+        publication.uploadedBy
+      ),
 
     createdAt:
       publication.createdAt
-        ? new Date(publication.createdAt)
+        ? new Date(
+            publication.createdAt
+          )
         : "",
 
-       finalStatus:
-      publication.finalStatus === "approved"
+    finalStatus:
+      publication.finalStatus ===
+      "approved"
         ? "Approved"
-        : publication.finalStatus === "rejected"
-          ? "Rejected"
-          : "Pending",
+        : publication.finalStatus ===
+          "rejected"
+        ? "Rejected"
+        : "Pending",
   };
 };
 
 // ============================================================
 // CREATE TYPE-SPECIFIC ROW
-//
-// IMPORTANT:
-// Only fields defined in typeColumns are added.
-// This prevents unwanted MongoDB fields from appearing
-// in Excel.
 // ============================================================
 
-const createTypeRow = (publication) => {
-  const details = publication.type_details || {};
+const createTypeRow = (
+  publication
+) => {
+  const details =
+    publication.type_details ||
+    {};
 
   const row = {};
-
-  // ----------------------------------------------------------
-  // Add only fields explicitly defined in typeColumns
-  // ----------------------------------------------------------
 
   const publicationType =
     publication.publication_type;
 
   const columns =
-    typeColumns[publicationType] || [];
+    typeColumns[
+      publicationType
+    ] || [];
 
-  columns.forEach((column) => {
-    const key = column.key;
+  columns.forEach(
+    (column) => {
+      const key =
+        column.key;
 
-    // Patent nested commercialization
-    if (key === "is_commercialized") {
+      // Patent nested commercialization
+      if (
+        key ===
+        "is_commercialized"
+      ) {
+        row[key] =
+          details
+            .commercialization
+            ?.is_commercialized
+            ? "Yes"
+            : "No";
+
+        return;
+      }
+
+      if (
+        key ===
+        "commercialization_details"
+      ) {
+        row[key] =
+          details
+            .commercialization
+            ?.details || "";
+
+        return;
+      }
+
       row[key] =
-        details.commercialization?.is_commercialized
-          ? "Yes"
-          : "No";
-
-      return;
+        formatExcelValue(
+          details[key]
+        );
     }
-
-    if (key === "commercialization_details") {
-      row[key] =
-        details.commercialization?.details || "";
-
-      return;
-    }
-
-    row[key] =
-      formatExcelValue(details[key]);
-  });
+  );
 
   return row;
 };
 
 // ============================================================
 // EXCEL COLUMN LETTER
-//
-// Supports:
-// A-Z
-// AA-AZ
-// BA-BZ
-// etc.
-//
-// This fixes the previous 26-column limitation.
 // ============================================================
 
-const getExcelColumnLetter = (columnNumber) => {
+const getExcelColumnLetter = (
+  columnNumber
+) => {
   let result = "";
-  let number = columnNumber;
 
-  while (number > 0) {
-    const remainder = (number - 1) % 26;
+  let number =
+    columnNumber;
+
+  while (
+    number > 0
+  ) {
+    const remainder =
+      (number - 1) %
+      26;
 
     result =
-      String.fromCharCode(65 + remainder) +
-      result;
+      String.fromCharCode(
+        65 + remainder
+      ) + result;
 
     number =
-      Math.floor((number - 1) / 26);
+      Math.floor(
+        (number - 1) /
+          26
+      );
   }
 
   return result;
@@ -842,8 +949,10 @@ const buildWorksheet = (
 ) => {
   const worksheet =
     workbook.addWorksheet(
-      SHEET_NAMES[publicationType] ||
-      publicationType
+      SHEET_NAMES[
+        publicationType
+      ] ||
+        publicationType
     );
 
   // ----------------------------------------------------------
@@ -851,40 +960,59 @@ const buildWorksheet = (
   // ----------------------------------------------------------
 
   const columns = [
-    ...(includeCommon ? commonColumns : []),
-    ...(typeColumns[publicationType] || []),
+    ...(includeCommon
+      ? commonColumns
+      : []),
+
+    ...(typeColumns[
+      publicationType
+    ] || []),
   ];
 
-  worksheet.columns = columns.map(
-    (column) => ({
-      header: column.header,
-      key: column.key,
-      width: Math.max(
-        15,
-        Math.min(
-          40,
-          column.header.length + 5
-        )
-      ),
-    })
-  );
+  worksheet.columns =
+    columns.map(
+      (column) => ({
+        header:
+          column.header,
+
+        key:
+          column.key,
+
+        width:
+          Math.max(
+            15,
+            Math.min(
+              40,
+              column
+                .header
+                .length + 5
+            )
+          ),
+      })
+    );
 
   // ----------------------------------------------------------
   // ROWS
   // ----------------------------------------------------------
 
-  publications.forEach((publication) => {
-    const commonRow =
-      createCommonRow(publication);
+  publications.forEach(
+    (publication) => {
+      const commonRow =
+        createCommonRow(
+          publication
+        );
 
-    const typeRow =
-      createTypeRow(publication);
+      const typeRow =
+        createTypeRow(
+          publication
+        );
 
-    worksheet.addRow({
-      ...commonRow,
-      ...typeRow,
-    });
-  });
+      worksheet.addRow({
+        ...commonRow,
+        ...typeRow,
+      });
+    }
+  );
 
   // ----------------------------------------------------------
   // HEADER STYLE
@@ -909,52 +1037,65 @@ const buildWorksheet = (
   // HEADER BORDER
   // ----------------------------------------------------------
 
-  headerRow.eachCell((cell) => {
-    cell.border = {
-      top: {
-        style: "thin",
-      },
-      left: {
-        style: "thin",
-      },
-      bottom: {
-        style: "thin",
-      },
-      right: {
-        style: "thin",
-      },
-    };
-  });
+  headerRow.eachCell(
+    (cell) => {
+      cell.border = {
+        top: {
+          style: "thin",
+        },
+        left: {
+          style: "thin",
+        },
+        bottom: {
+          style: "thin",
+        },
+        right: {
+          style: "thin",
+        },
+      };
+    }
+  );
 
   // ----------------------------------------------------------
   // WRAP TEXT FOR DATA
   // ----------------------------------------------------------
 
-  worksheet.eachRow((row, rowNumber) => {
-    if (rowNumber === 1) {
-      return;
-    }
+  worksheet.eachRow(
+    (row, rowNumber) => {
+      if (
+        rowNumber === 1
+      ) {
+        return;
+      }
 
-    row.eachCell((cell) => {
-      cell.alignment = {
-        vertical: "top",
-        wrapText: true,
-      };
-    });
-  });
+      row.eachCell(
+        (cell) => {
+          cell.alignment = {
+            vertical: "top",
+            wrapText: true,
+          };
+        }
+      );
+    }
+  );
 
   // ----------------------------------------------------------
   // AUTO FILTER
   // ----------------------------------------------------------
 
-  if (columns.length > 0) {
+  if (
+    columns.length > 0
+  ) {
     const lastColumn =
-      getExcelColumnLetter(columns.length);
+      getExcelColumnLetter(
+        columns.length
+      );
 
-    worksheet.autoFilter = {
-      from: "A1",
-      to: `${lastColumn}1`,
-    };
+    worksheet.autoFilter =
+      {
+        from: "A1",
+        to: `${lastColumn}1`,
+      };
   }
 
   // ----------------------------------------------------------
@@ -973,29 +1114,25 @@ const buildWorksheet = (
 
 // ============================================================
 // BUILD DATE FILTER
-//
-// IMPORTANT:
-// The Metrics page and Excel download both use createdAt.
-//
-// Example:
-//
-// from=2026-08-01
-// to=2026-08-31
-//
-// means:
-//
-// createdAt >= 01 Aug 2026 00:00:00 UTC
-// createdAt <= 31 Aug 2026 23:59:59.999 UTC
 // ============================================================
 
-const buildDateFilter = (from, to) => {
+const buildDateFilter = (
+  from,
+  to
+) => {
   const filter = {};
 
   if (from) {
     const fromDate =
-      new Date(`${from}T00:00:00.000Z`);
+      new Date(
+        `${from}T00:00:00.000Z`
+      );
 
-    if (!Number.isNaN(fromDate.getTime())) {
+    if (
+      !Number.isNaN(
+        fromDate.getTime()
+      )
+    ) {
       filter.createdAt = {
         $gte: fromDate,
       };
@@ -1004,14 +1141,23 @@ const buildDateFilter = (from, to) => {
 
   if (to) {
     const toDate =
-      new Date(`${to}T23:59:59.999Z`);
+      new Date(
+        `${to}T23:59:59.999Z`
+      );
 
-    if (!Number.isNaN(toDate.getTime())) {
-      if (!filter.createdAt) {
+    if (
+      !Number.isNaN(
+        toDate.getTime()
+      )
+    ) {
+      if (
+        !filter.createdAt
+      ) {
         filter.createdAt = {};
       }
 
-      filter.createdAt.$lte = toDate;
+      filter.createdAt.$lte =
+        toDate;
     }
   }
 
@@ -1022,21 +1168,29 @@ const buildDateFilter = (from, to) => {
 // VALIDATE DATE STRING
 // ============================================================
 
-const isValidDateString = (date) => {
+const isValidDateString = (
+  date
+) => {
   if (!date) {
     return false;
   }
 
-  // Expected format: YYYY-MM-DD
+  // Expected:
+  // YYYY-MM-DD
+
   const dateRegex =
     /^\d{4}-\d{2}-\d{2}$/;
 
-  if (!dateRegex.test(date)) {
+  if (
+    !dateRegex.test(date)
+  ) {
     return false;
   }
 
   const parsedDate =
-    new Date(`${date}T00:00:00.000Z`);
+    new Date(
+      `${date}T00:00:00.000Z`
+    );
 
   return !Number.isNaN(
     parsedDate.getTime()
@@ -1047,28 +1201,23 @@ const isValidDateString = (date) => {
 // GET PUBLICATION METRICS
 //
 // GET
-// /api/reports/publications?from=2026-08-01&to=2026-08-31
+// /api/reports/publications
 //
-// Response:
+// ROLE SCOPE:
 //
-// {
-//   success: true,
-//   from: "2026-08-01",
-//   to: "2026-08-31",
-//   total: 10,
-//   data: [
-//     {
-//       label: "Journal",
-//       value: 5,
-//       publication_type: "journal"
-//     },
-//     ...
-//   ]
-// }
+// super_admin  -> Institution-wide
+// special_user -> Institution-wide
+// directorate  -> Institution-wide
+// admin        -> Own department
+// faculty      -> Own publications
+// student      -> Own publications
 //
 // ============================================================
 
-const getPublicationMetrics = async (req, res) => {
+const getPublicationMetrics = async (
+  req,
+  res
+) => {
   try {
     const {
       from,
@@ -1079,7 +1228,10 @@ const getPublicationMetrics = async (req, res) => {
     // REQUIRED DATES
     // --------------------------------------------------------
 
-    if (!from || !to) {
+    if (
+      !from ||
+      !to
+    ) {
       return res.status(400).json({
         success: false,
         message:
@@ -1092,8 +1244,12 @@ const getPublicationMetrics = async (req, res) => {
     // --------------------------------------------------------
 
     if (
-      !isValidDateString(from) ||
-      !isValidDateString(to)
+      !isValidDateString(
+        from
+      ) ||
+      !isValidDateString(
+        to
+      )
     ) {
       return res.status(400).json({
         success: false,
@@ -1115,11 +1271,124 @@ const getPublicationMetrics = async (req, res) => {
     }
 
     // --------------------------------------------------------
+    // GET USER + ACTIVE ROLE
+    // --------------------------------------------------------
+
+    const {
+      user,
+      activeRole,
+    } =
+      await getActiveRole(req);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "User not found",
+      });
+    }
+
+    console.log(
+      "METRICS USER:",
+      {
+        userId:
+          user._id,
+
+        activeRole,
+
+        roles:
+          user.role,
+
+        department:
+          user.department,
+      }
+    );
+
+    // --------------------------------------------------------
     // BUILD DATE FILTER
     // --------------------------------------------------------
 
-    const dateFilter =
-      buildDateFilter(from, to);
+    const matchFilter = {
+      ...buildDateFilter(
+        from,
+        to
+      ),
+    };
+
+    // --------------------------------------------------------
+    // ROLE-BASED SCOPE
+    // --------------------------------------------------------
+
+    switch (activeRole) {
+
+      // ------------------------------------------------------
+      // INSTITUTION-WIDE
+      // ------------------------------------------------------
+
+      case "super_admin":
+      case "special_user":
+      case "directorate":
+
+        // No additional filter.
+
+        break;
+
+
+      // ------------------------------------------------------
+      // ADMIN
+      //
+      // Only publications from admin's department.
+      // ------------------------------------------------------
+
+      case "admin":
+
+        matchFilter.department =
+          user.department;
+
+        break;
+
+
+      // ------------------------------------------------------
+      // FACULTY
+      //
+      // Only publications where faculty reference
+      // matches the logged-in faculty.
+      // ------------------------------------------------------
+
+      case "faculty":
+
+        matchFilter.faculty =
+          user._id;
+
+        break;
+
+
+      // ------------------------------------------------------
+      // STUDENT
+      //
+      // Only publications uploaded by logged-in student.
+      // ------------------------------------------------------
+
+      case "student":
+
+        matchFilter.uploadedBy =
+          user._id;
+
+        break;
+
+
+      // ------------------------------------------------------
+      // INVALID ROLE
+      // ------------------------------------------------------
+
+      default:
+
+        return res.status(403).json({
+          success: false,
+          message:
+            "Invalid or unauthorized role",
+        });
+    }
 
     // --------------------------------------------------------
     // AGGREGATE
@@ -1128,12 +1397,15 @@ const getPublicationMetrics = async (req, res) => {
     const metrics =
       await Publication.aggregate([
         {
-          $match: dateFilter,
+          $match:
+            matchFilter,
         },
 
         {
           $group: {
-            _id: "$publication_type",
+            _id:
+              "$publication_type",
+
             value: {
               $sum: 1,
             },
@@ -1147,28 +1419,36 @@ const getPublicationMetrics = async (req, res) => {
 
     const metricMap = {};
 
-    metrics.forEach((item) => {
-      metricMap[item._id] =
-        item.value;
-    });
+    metrics.forEach(
+      (item) => {
+        metricMap[
+          item._id
+        ] =
+          item.value;
+      }
+    );
 
     // --------------------------------------------------------
     // ALWAYS RETURN ALL PUBLICATION TYPES
-    //
-    // Even if count = 0
     // --------------------------------------------------------
 
     const data =
-      PUBLICATION_TYPES.map((type) => ({
-        label:
-          DISPLAY_NAMES[type] || type,
+      PUBLICATION_TYPES.map(
+        (type) => ({
+          label:
+            DISPLAY_NAMES[
+              type
+            ] || type,
 
-        value:
-          metricMap[type] || 0,
+          value:
+            metricMap[
+              type
+            ] || 0,
 
-        publication_type:
-          type,
-      }));
+          publication_type:
+            type,
+        })
+      );
 
     // --------------------------------------------------------
     // TOTAL
@@ -1176,8 +1456,12 @@ const getPublicationMetrics = async (req, res) => {
 
     const total =
       data.reduce(
-        (sum, item) =>
-          sum + item.value,
+        (
+          sum,
+          item
+        ) =>
+          sum +
+          item.value,
         0
       );
 
@@ -1187,13 +1471,18 @@ const getPublicationMetrics = async (req, res) => {
 
     return res.status(200).json({
       success: true,
+
       from,
+
       to,
+
       total,
+
       data,
     });
 
   } catch (error) {
+
     console.error(
       "GET PUBLICATION METRICS ERROR:",
       error
@@ -1201,8 +1490,10 @@ const getPublicationMetrics = async (req, res) => {
 
     return res.status(500).json({
       success: false,
+
       message:
         "Failed to fetch publication metrics",
+
       error:
         error.message,
     });
@@ -1216,289 +1507,388 @@ const getPublicationMetrics = async (req, res) => {
 //
 // /api/reports/publications/excel
 //
-// Examples:
+// EXCEL PERMISSION:
 //
-// ALL:
+// super_admin  -> ALLOWED
+// directorate  -> ALLOWED
 //
-// ?type=all
-// &from=2026-08-01
-// &to=2026-08-31
-//
-// JOURNAL:
-//
-// ?type=journal
-// &from=2026-08-01
-// &to=2026-08-31
+// special_user -> NOT ALLOWED
+// admin        -> NOT ALLOWED
+// faculty      -> NOT ALLOWED
+// student      -> NOT ALLOWED
 //
 // ============================================================
 
-const exportPublicationsToExcel = async (
-  req,
-  res
-) => {
-  try {
-   const {
-  type = "all",
-  status = "all",
-  from,
-  to,
-} = req.query;
+const exportPublicationsToExcel =
+  async (
+    req,
+    res
+  ) => {
+    try {
 
-    // --------------------------------------------------------
-    // VALIDATE TYPE
-    // --------------------------------------------------------
+      const {
+        type = "all",
+        status = "all",
+        from,
+        to,
+      } = req.query;
 
-    if (
-      type !== "all" &&
-      !PUBLICATION_TYPES.includes(type)
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Invalid publication type",
-      });
-    }
+      // ------------------------------------------------------
+      // GET USER + ACTIVE ROLE
+      // ------------------------------------------------------
 
-    // --------------------------------------------------------
-    // VALIDATE STATUS
-    // --------------------------------------------------------
+      const {
+        user,
+        activeRole,
+      } =
+        await getActiveRole(
+          req
+        );
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "User not found",
+        });
+      }
+
+      console.log(
+        "EXCEL EXPORT USER:",
+        {
+          userId:
+            user._id,
+
+          activeRole,
+
+          roles:
+            user.role,
+        }
+      );
+
+      // ------------------------------------------------------
+      // EXCEL PERMISSION
+      //
+      // ONLY super_admin and directorate
+      // ------------------------------------------------------
+
+      const canDownloadExcel =
+        [
+          "super_admin",
+          "directorate",
+        ].includes(
+          activeRole
+        );
+
+      if (
+        !canDownloadExcel
+      ) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "You are not authorized to download Excel reports",
+        });
+      }
+
+      // ------------------------------------------------------
+      // VALIDATE TYPE
+      // ------------------------------------------------------
+
+      if (
+        type !== "all" &&
+        !PUBLICATION_TYPES.includes(
+          type
+        )
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid publication type",
+        });
+      }
+
+      // ------------------------------------------------------
+      // VALIDATE STATUS
+      // ------------------------------------------------------
 
       if (
         status !== "all" &&
-       status !== "approved" &&
-      status !== "not_approved"
-       ) {
-     return res.status(400).json({
-       success: false,
-       message: "Invalid publication status",
-    });
-}
-    // --------------------------------------------------------
-    // VALIDATE FROM DATE
-    // --------------------------------------------------------
+        status !== "approved" &&
+        status !== "not_approved"
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Invalid publication status",
+        });
+      }
 
-    if (
-      from &&
-      !isValidDateString(from)
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "From date must be in YYYY-MM-DD format",
-      });
-    }
+      // ------------------------------------------------------
+      // VALIDATE FROM DATE
+      // ------------------------------------------------------
 
-    // --------------------------------------------------------
-    // VALIDATE TO DATE
-    // --------------------------------------------------------
+      if (
+        from &&
+        !isValidDateString(
+          from
+        )
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "From date must be in YYYY-MM-DD format",
+        });
+      }
 
-    if (
-      to &&
-      !isValidDateString(to)
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "To date must be in YYYY-MM-DD format",
-      });
-    }
+      // ------------------------------------------------------
+      // VALIDATE TO DATE
+      // ------------------------------------------------------
 
-    // --------------------------------------------------------
-    // VALIDATE DATE RANGE
-    // --------------------------------------------------------
+      if (
+        to &&
+        !isValidDateString(
+          to
+        )
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "To date must be in YYYY-MM-DD format",
+        });
+      }
 
-    if (from && to && from > to) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "From date cannot be greater than To date",
-      });
-    }
+      // ------------------------------------------------------
+      // VALIDATE DATE RANGE
+      // ------------------------------------------------------
 
-    // --------------------------------------------------------
-    // BUILD MONGO QUERY
-    // --------------------------------------------------------
+      if (
+        from &&
+        to &&
+        from > to
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "From date cannot be greater than To date",
+        });
+      }
 
-    const query = {
-      ...buildDateFilter(from, to),
-    };
+      // ------------------------------------------------------
+      // BUILD MONGO QUERY
+      // ------------------------------------------------------
 
-    // --------------------------------------------------------
-    // TYPE FILTER
-    // --------------------------------------------------------
+      const query = {
+        ...buildDateFilter(
+          from,
+          to
+        ),
+      };
 
-    if (type !== "all") {
-      query.publication_type = type;
-    }
+      // ------------------------------------------------------
+      // TYPE FILTER
+      // ------------------------------------------------------
 
-    // --------------------------------------------------------
-    // FINAL STATUS FILTER
-    // --------------------------------------------------------
+      if (
+        type !== "all"
+      ) {
+        query.publication_type =
+          type;
+      }
 
-      if (status === "approved") {
-         query.finalStatus = "approved";
-        }
+      // ------------------------------------------------------
+      // FINAL STATUS FILTER
+      // ------------------------------------------------------
 
-      if (status === "not_approved") {
-          query.finalStatus = {
-         $in: ["pending", "rejected"],
+      if (
+        status ===
+        "approved"
+      ) {
+        query.finalStatus =
+          "approved";
+      }
+
+      if (
+        status ===
+        "not_approved"
+      ) {
+        query.finalStatus = {
+          $in: [
+            "pending",
+            "rejected",
+          ],
         };
-      }   
+      }
 
-    // --------------------------------------------------------
-    // FETCH PUBLICATIONS
-    // --------------------------------------------------------
+      // ------------------------------------------------------
+      // FETCH PUBLICATIONS
+      // ------------------------------------------------------
 
-    const publications =
-      await Publication.find(query)
-        .populate(
-          "faculty",
-          "name email role"
+      const publications =
+        await Publication.find(
+          query
         )
-        .populate(
-          "uploadedBy",
-          "name email role"
-        )
-        .sort({
-          createdAt: -1,
-        })
-        .lean();
+          .populate(
+            "faculty",
+            "name email role"
+          )
+          .populate(
+            "uploadedBy",
+            "name email role"
+          )
+          .sort({
+            createdAt: -1,
+          })
+          .lean();
 
-    // --------------------------------------------------------
-    // NO DATA
-    // --------------------------------------------------------
+      // ------------------------------------------------------
+      // NO DATA
+      // ------------------------------------------------------
 
-    if (publications.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message:
-          "No publications found for the selected date range",
-      });
-    }
+      if (
+        publications.length ===
+        0
+      ) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "No publications found for the selected date range",
+        });
+      }
 
-    // --------------------------------------------------------
-    // CREATE WORKBOOK
-    // --------------------------------------------------------
+      // ------------------------------------------------------
+      // CREATE WORKBOOK
+      // ------------------------------------------------------
 
-    const workbook =
-      new ExcelJS.Workbook();
+      const workbook =
+        new ExcelJS.Workbook();
 
-    workbook.creator =
-      "Research Management System";
+      workbook.creator =
+        "Research Management System";
 
-    workbook.lastModifiedBy =
-      "Research Management System";
+      workbook.lastModifiedBy =
+        "Research Management System";
 
-    workbook.created =
-      new Date();
+      workbook.created =
+        new Date();
 
-    workbook.modified =
-      new Date();
+      workbook.modified =
+        new Date();
 
-    // --------------------------------------------------------
-    // ALL PUBLICATION TYPES
-    //
-    // Creates one Excel sheet per type.
-    //
-    // Even if one type has zero records, the sheet is created
-    // when there are other records in the selected range.
-    // --------------------------------------------------------
+      // ------------------------------------------------------
+      // ALL PUBLICATION TYPES
+      // ------------------------------------------------------
 
-    if (type === "all") {
-      PUBLICATION_TYPES.forEach(
-        (publicationType) => {
-          const filtered =
-            publications.filter(
-              (publication) =>
-                publication.publication_type ===
-                publicationType
+      if (
+        type === "all"
+      ) {
+
+        PUBLICATION_TYPES.forEach(
+          (
+            publicationType
+          ) => {
+
+            const filtered =
+              publications.filter(
+                (
+                  publication
+                ) =>
+                  publication
+                    .publication_type ===
+                  publicationType
+              );
+
+            buildWorksheet(
+              workbook,
+              filtered,
+              publicationType,
+              true
             );
+          }
+        );
 
-          buildWorksheet(
-            workbook,
-            filtered,
-            publicationType,
-            true
-          );
-        }
+      }
+
+      // ------------------------------------------------------
+      // SINGLE PUBLICATION TYPE
+      // ------------------------------------------------------
+
+      else {
+
+        buildWorksheet(
+          workbook,
+          publications,
+          type,
+          true
+        );
+
+      }
+
+      // ------------------------------------------------------
+      // FILE NAME
+      // ------------------------------------------------------
+
+      let fileName;
+
+      if (
+        type === "all"
+      ) {
+
+        fileName =
+          `publications-${from || "all"}-to-${to || "all"}.xlsx`;
+
+      } else {
+
+        fileName =
+          `${type}-publications-${from || "all"}-to-${to || "all"}.xlsx`;
+
+      }
+
+      // ------------------------------------------------------
+      // RESPONSE HEADERS
+      // ------------------------------------------------------
+
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
       );
-    }
 
-    // --------------------------------------------------------
-    // SINGLE PUBLICATION TYPE
-    // --------------------------------------------------------
-
-    else {
-      buildWorksheet(
-        workbook,
-        publications,
-        type,
-        true
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${fileName}"`
       );
+
+      // ------------------------------------------------------
+      // WRITE DIRECTLY TO RESPONSE
+      // ------------------------------------------------------
+
+      await workbook.xlsx.write(
+        res
+      );
+
+      res.end();
+
+    } catch (error) {
+
+      console.error(
+        "EXPORT PUBLICATIONS EXCEL ERROR:",
+        error
+      );
+
+      if (
+        !res.headersSent
+      ) {
+        return res.status(500).json({
+          success: false,
+
+          message:
+            "Failed to export publications to Excel",
+
+          error:
+            error.message,
+        });
+      }
     }
-
-    // --------------------------------------------------------
-    // FILE NAME
-    // --------------------------------------------------------
-
-    let fileName;
-
-    if (type === "all") {
-      fileName =
-        `publications-${from || "all"}-to-${to || "all"}.xlsx`;
-    } else {
-      fileName =
-        `${type}-publications-${from || "all"}-to-${to || "all"}.xlsx`;
-    }
-
-    // --------------------------------------------------------
-    // RESPONSE HEADERS
-    // --------------------------------------------------------
-
-    res.setHeader(
-      "Content-Type",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    );
-
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="${fileName}"`
-    );
-
-    // --------------------------------------------------------
-    // WRITE DIRECTLY TO RESPONSE
-    //
-    // IMPORTANT:
-    //
-    // We DO NOT use:
-    //
-    // workbook.xlsx.writeFile(...)
-    //
-    // Therefore there is no local Excel file to lock.
-    // This avoids EBUSY/resource locked errors.
-    // --------------------------------------------------------
-
-    await workbook.xlsx.write(res);
-
-    res.end();
-
-  } catch (error) {
-    console.error(
-      "EXPORT PUBLICATIONS EXCEL ERROR:",
-      error
-    );
-
-    if (!res.headersSent) {
-      return res.status(500).json({
-        success: false,
-        message:
-          "Failed to export publications to Excel",
-        error:
-          error.message,
-      });
-    }
-  }
-};
+  };
 
 // ============================================================
 // EXPORT CONTROLLER
