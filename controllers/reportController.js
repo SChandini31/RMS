@@ -113,6 +113,10 @@ const commonColumns = [
     header: "Created At",
     key: "createdAt",
   },
+  {
+  header: "Final Status",
+  key: "finalStatus",
+},
 ];
 
 // ============================================================
@@ -735,6 +739,13 @@ const createCommonRow = (publication) => {
       publication.createdAt
         ? new Date(publication.createdAt)
         : "",
+
+       finalStatus:
+      publication.finalStatus === "approved"
+        ? "Approved"
+        : publication.finalStatus === "rejected"
+          ? "Rejected"
+          : "Pending",
   };
 };
 
